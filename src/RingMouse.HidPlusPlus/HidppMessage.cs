@@ -35,9 +35,9 @@ public sealed class HidppMessage
     public HidppMessage(byte reportId, byte deviceIndex, byte subId, byte address, ReadOnlySpan<byte> payload)
     {
         var len = PayloadLengthFor(reportId);
-        if (len < 0) throw new ArgumentOutOfRangeException(nameof(reportId), $"Keine HID++-Report-ID: 0x{reportId:X2}");
+        if (len < 0) throw new ArgumentOutOfRangeException(nameof(reportId), $"Not a HID++ report ID: 0x{reportId:X2}");
         if (payload.Length > len)
-            throw new ArgumentException($"Payload ({payload.Length}) zu lang für Report 0x{reportId:X2} (max. {len}).", nameof(payload));
+            throw new ArgumentException($"Payload ({payload.Length}) too long for report 0x{reportId:X2} (max. {len}).", nameof(payload));
 
         ReportId = reportId;
         DeviceIndex = deviceIndex;
@@ -89,7 +89,7 @@ public sealed class HidppMessage
         ReadOnlySpan<byte> args = default, bool longReport = true)
     {
         if (function > 0x0F) throw new ArgumentOutOfRangeException(nameof(function));
-        if (softwareId is 0 or > 0x0F) throw new ArgumentOutOfRangeException(nameof(softwareId), "Software-ID muss 1–15 sein.");
+        if (softwareId is 0 or > 0x0F) throw new ArgumentOutOfRangeException(nameof(softwareId), "Software ID must be 1–15.");
         var address = (byte)((function << 4) | softwareId);
         return longReport || args.Length > ShortPayloadLength
             ? Long(deviceIndex, featureIndex, address, args)
@@ -101,7 +101,7 @@ public sealed class HidppMessage
     public HidppMessage ToShort()
     {
         if (IsShort) return this;
-        if (!FitsShort) throw new InvalidOperationException("Nachricht passt nicht in einen Short-Report.");
+        if (!FitsShort) throw new InvalidOperationException("Message does not fit into a short report.");
         return new HidppMessage(ShortReportId, DeviceIndex, SubId, Address, _payload.AsSpan(0, ShortPayloadLength));
     }
 
@@ -133,7 +133,7 @@ public sealed class HidppMessage
     public static HidppMessage Parse(string hex)
     {
         var bytes = ParseHex(hex);
-        return TryParse(bytes, out var m) ? m : throw new FormatException($"Kein HID++-Report: {hex}");
+        return TryParse(bytes, out var m) ? m : throw new FormatException($"Not a HID++ report: {hex}");
     }
 
     public static int PayloadLengthFor(byte reportId) => reportId switch
@@ -162,7 +162,7 @@ public sealed class HidppMessage
         var clean = new StringBuilder(hex.Length);
         foreach (var c in hex)
             if (Uri.IsHexDigit(c)) clean.Append(c);
-        if (clean.Length % 2 != 0) throw new FormatException("Ungerade Anzahl Hex-Ziffern.");
+        if (clean.Length % 2 != 0) throw new FormatException("Odd number of hex digits.");
         return Convert.FromHexString(clean.ToString());
     }
 }

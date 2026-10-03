@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using RingMouse.Core.Config;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -42,11 +43,11 @@ internal sealed unsafe partial class ColorPicker : WrapPanel
 
         // Feld für eine eigene Farbe (sichtbar, sobald eine gewählt ist)
         _customSwatch = Swatch(_value ?? "#000000");
-        _customFrame = Frame(new Button { Content = _customSwatch, Padding = new Thickness(3), ToolTip = "Eigene Farbe" });
+        _customFrame = Frame(new Button { Content = _customSwatch, Padding = new Thickness(3), ToolTip = L("Custom color", "Eigene Farbe") });
         ((Button)_customFrame.Child).Click += (_, _) => Select(CustomValue);
         Children.Add(_customFrame);
 
-        var pick = new Button { Content = "Eigene…", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(4, 2, 2, 2), VerticalAlignment = VerticalAlignment.Center };
+        var pick = new Button { Content = L("Custom…", "Eigene…"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(4, 2, 2, 2), VerticalAlignment = VerticalAlignment.Center };
         pick.Click += (_, _) => PickCustom();
         Children.Add(pick);
         UpdateSelection();
@@ -111,7 +112,7 @@ internal sealed unsafe partial class ColorPicker : WrapPanel
         if (CustomValue is not null && ColorValue.TryParse(CustomValue, out var c))
         {
             _customSwatch.Background = new SolidColorBrush(Color.FromArgb(c.A, c.R, c.G, c.B));
-            ((Button)_customFrame.Child).ToolTip = $"Eigene Farbe {CustomValue}";
+            ((Button)_customFrame.Child).ToolTip = L($"Custom color {CustomValue}", $"Eigene Farbe {CustomValue}");
         }
         _customFrame.BorderBrush = !matched && _value is not null ? accent : Brushes.Transparent;
     }

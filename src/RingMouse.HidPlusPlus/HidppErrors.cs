@@ -57,15 +57,15 @@ public sealed class HidppErrorException : HidppException
     public Hidpp10Error? Error10 => IsHidpp10 ? (Hidpp10Error)ErrorCode : null;
 
     private static string Describe(bool v10, byte code, HidppMessage req) => v10
-        ? $"HID++ 1.0 Fehler {(Hidpp10Error)code} (0x{code:X2}) auf [{req}]"
-        : $"HID++ 2.0 Fehler {(Hidpp20Error)code} (0x{code:X2}) auf [{req}]";
+        ? $"HID++ 1.0 error {(Hidpp10Error)code} (0x{code:X2}) on [{req}]"
+        : $"HID++ 2.0 error {(Hidpp20Error)code} (0x{code:X2}) on [{req}]";
 }
 
 /// <summary>Keine passende Antwort innerhalb des Timeouts (Gerät schläft, ist getrennt oder antwortet nicht).</summary>
 public sealed class HidppTimeoutException : HidppException
 {
     public HidppTimeoutException(HidppMessage request, TimeSpan timeout)
-        : base($"Keine Antwort nach {timeout.TotalMilliseconds:0} ms auf [{request}]")
+        : base($"No response after {timeout.TotalMilliseconds:0} ms to [{request}]")
     {
         Request = request;
     }

@@ -52,7 +52,7 @@ public sealed class StateStore
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "state.json konnte nicht gelesen werden – starte mit leerem Zustand");
+            _logger?.LogWarning(ex, "Could not read state.json – starting with an empty state");
             return new AppState();
         }
     }
@@ -70,7 +70,7 @@ public sealed class StateStore
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "state.json konnte nicht geschrieben werden");
+                _logger?.LogWarning(ex, "Could not write state.json");
             }
         }
     }

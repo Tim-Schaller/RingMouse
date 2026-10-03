@@ -42,7 +42,7 @@ public sealed record FirmwareEntity(int Index, byte Type, string Prefix, byte Nu
         7 => "Factory application",
         8 => "RGB custom effect",
         9 => "Motor drive",
-        _ => $"Typ {Type}",
+        _ => $"Type {Type}",
     };
 
     /// <summary>Anzeige wie "MPM 19.01.B0021" (Nummer/Revision/Build sind BCD).</summary>

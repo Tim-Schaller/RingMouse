@@ -32,7 +32,7 @@ public sealed unsafe class WinHidDeviceWatcher : IHidDeviceWatcher
         {
             _self.Free();
             _notification = IntPtr.Zero;
-            throw new InvalidOperationException($"CM_Register_Notification fehlgeschlagen (CONFIGRET 0x{cr:X}).");
+            throw new InvalidOperationException($"CM_Register_Notification failed (CONFIGRET 0x{cr:X}).");
         }
     }
 

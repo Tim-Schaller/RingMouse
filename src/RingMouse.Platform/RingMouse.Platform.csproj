@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>RingMouse.Platform</RootNamespace>
-    <Description>Win32-Anbindung: SendInput, Low-Level-Hooks, Vordergrundfenster/Elevation, Prozessstart ohne Adminrechte, Zwischenablage, Autostart, Monitore, Theme.</Description>
+    <Description>Win32 integration: SendInput, low-level hooks, foreground window/elevation, launching without admin rights, clipboard, autostart, monitors, theme.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,6 +1,7 @@
 using RingMouse.Core.Config;
 using RingMouse.HidPlusPlus;
 using RingMouse.HidPlusPlus.Features;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Device;
 
@@ -37,9 +38,9 @@ public sealed record DeviceSnapshot
 
     public string StateText => State switch
     {
-        DeviceState.Ready => "verbunden",
-        DeviceState.Connecting => "verbindet …",
-        _ => "nicht erreichbar",
+        DeviceState.Ready => L("connected", "verbunden"),
+        DeviceState.Connecting => L("connecting …", "verbindet …"),
+        _ => L("unreachable", "nicht erreichbar"),
     };
 }
 

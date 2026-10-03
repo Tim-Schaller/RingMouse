@@ -72,7 +72,7 @@ public sealed class BatteryVoltageCurve
     public BatteryVoltageCurve(IEnumerable<(int Millivolts, int Percent)> points)
     {
         _points = points.OrderByDescending(p => p.Millivolts).ToArray();
-        if (_points.Length < 2) throw new ArgumentException("Mindestens zwei Stützstellen nötig.", nameof(points));
+        if (_points.Length < 2) throw new ArgumentException("At least two curve points are required.", nameof(points));
     }
 
     public static BatteryVoltageCurve Default { get; } = new(

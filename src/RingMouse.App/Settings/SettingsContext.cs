@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using RingMouse.Core.Config;
 using RingMouse.HidPlusPlus.Features;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -38,7 +39,7 @@ internal sealed class SettingsContext(ISettingsHost host, RingMouseConfig config
         foreach (var key in Config.Buttons.Keys.Concat(Config.Profiles.SelectMany(p => p.Buttons.Keys)))
         {
             if (ControlIds.TryParse(key, out var cid) && !map.ContainsKey(cid))
-                map[cid] = new KnownControl(cid, ControlIds.GetName(cid), true, false, "nicht verbunden");
+                map[cid] = new KnownControl(cid, ControlIds.GetName(cid), true, false, L("not connected", "nicht verbunden"));
         }
         return map.Values.OrderBy(c => c.Cid).ToList();
     }
@@ -95,7 +96,7 @@ internal static class InputDialog
     {
         var box = new TextBox { Text = initial, MinWidth = 280, Margin = new Thickness(0, 8, 0, 12) };
         var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 80, Margin = new Thickness(0, 0, 8, 0) };
-        var cancel = new Button { Content = "Abbrechen", IsCancel = true, MinWidth = 80 };
+        var cancel = new Button { Content = L("Cancel", "Abbrechen"), IsCancel = true, MinWidth = 80 };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(ok);
         buttons.Children.Add(cancel);

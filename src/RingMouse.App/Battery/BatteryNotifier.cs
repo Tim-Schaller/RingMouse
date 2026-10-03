@@ -4,6 +4,7 @@ using RingMouse.Core.Battery;
 using RingMouse.Core.Config;
 using RingMouse.Core.State;
 using RingMouse.Device;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Battery;
 
@@ -55,14 +56,17 @@ internal sealed class BatteryNotifier(TrayController tray, StateStore store, ILo
         switch (alert)
         {
             case BatteryAlert.Low low:
-                log.LogInformation("{Device}: Akku {Percent} % – Schwelle {Threshold} % erreicht", device.Name, low.Percent, low.Threshold);
-                tray.Notify($"{name}: Akku {low.Percent} %",
-                    low.Threshold <= 5 ? "Bitte jetzt aufladen – die Maus schaltet sich bald ab." : "Bitte bald aufladen.",
+                log.LogInformation("{Device}: battery {Percent} % – threshold {Threshold} % reached", device.Name, low.Percent, low.Threshold);
+                tray.Notify(L($"{name}: battery {low.Percent} %", $"{name}: Akku {low.Percent} %"),
+                    low.Threshold <= 5
+                        ? L("Please charge now – the mouse will turn off soon.", "Bitte jetzt aufladen – die Maus schaltet sich bald ab.")
+                        : L("Please charge soon.", "Bitte bald aufladen."),
                     low.Threshold <= 10 ? TrayNotice.Error : TrayNotice.Warning);
                 break;
             case BatteryAlert.Charged when _config.Battery.NotifyCharged:
-                log.LogInformation("{Device}: Aufladen abgeschlossen", device.Name);
-                tray.Notify($"{name}: Aufladen abgeschlossen", "Der Akku ist voll.", TrayNotice.Info);
+                log.LogInformation("{Device}: charging complete", device.Name);
+                tray.Notify(L($"{name}: charging complete", $"{name}: Aufladen abgeschlossen"), L("The battery is full.", "Der Akku ist voll."),
+                    TrayNotice.Info);
                 break;
         }
 

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using RingMouse.Core.Input;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -18,7 +19,7 @@ internal sealed partial class KeyCaptureBox : UserControl
     public KeyCaptureBox(string? value, Action<string> onChange)
     {
         _box = new TextBox { Text = value ?? "", MinWidth = 220 };
-        _record = new ToggleButton { Content = "⌨ Aufnehmen", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 2, 10, 2) };
+        _record = new ToggleButton { Content = L("⌨ Record", "⌨ Aufnehmen"), Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 2, 10, 2) };
         _status = new TextBlock { Opacity = 0.75, FontSize = 12, Margin = new Thickness(0, 3, 0, 0), TextWrapping = TextWrapping.Wrap };
 
         var line = new DockPanel();
@@ -38,7 +39,7 @@ internal sealed partial class KeyCaptureBox : UserControl
         _record.Checked += (_, _) =>
         {
             _box.Focus();
-            _status.Text = "Jetzt die Tastenkombination drücken …";
+            _status.Text = L("Now press the key combination …", "Jetzt die Tastenkombination drücken …");
         };
         _record.Unchecked += (_, _) => Validate();
         _box.PreviewKeyDown += OnPreviewKeyDown;
@@ -72,7 +73,7 @@ internal sealed partial class KeyCaptureBox : UserControl
     {
         if (_record.IsChecked == true) return;
         _status.Text = KeyChordParser.TryParse(_box.Text, out _, out var error)
-            ? "Beispiele: Ctrl+Shift+S · Win+. · Alt+F4 · Folge: Ctrl+K, Ctrl+C"
+            ? L("Examples: Ctrl+Shift+S · Win+. · Alt+F4 · sequence: Ctrl+K, Ctrl+C", "Beispiele: Ctrl+Shift+S · Win+. · Alt+F4 · Folge: Ctrl+K, Ctrl+C")
             : $"⚠ {error}";
     }
 

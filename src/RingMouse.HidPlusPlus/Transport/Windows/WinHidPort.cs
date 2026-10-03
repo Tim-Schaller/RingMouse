@@ -152,10 +152,10 @@ internal sealed unsafe class WinHidPort : IHidPort
         lock (_writeLock)
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            if (_writeStuck) throw new IOException("Ein früheres WriteFile hängt im Treiber – Collection wird geschlossen.");
-            if (_outLen <= 0) throw new InvalidOperationException("Die Collection hat keinen Output-Report.");
+            if (_writeStuck) throw new IOException("A previous WriteFile is stuck in the driver – the collection is being closed.");
+            if (_outLen <= 0) throw new InvalidOperationException("The collection has no output report.");
             if (report.Length > _outLen)
-                throw new ArgumentException($"Report ({report.Length} Byte) länger als Output-Report ({_outLen} Byte).", nameof(report));
+                throw new ArgumentException($"Report ({report.Length} bytes) longer than output report ({_outLen} bytes).", nameof(report));
 
             var span = new Span<byte>(_writeBuf, _outLen);
             span.Clear();
@@ -178,7 +178,7 @@ internal sealed unsafe class WinHidPort : IHidPort
                     _writeStuck = true;
                     ThreadPool.QueueUserWorkItem(static port => ((WinHidPort)port!).Dispose(), this);
                 }
-                throw new TimeoutException($"WriteFile: keine Bestätigung nach {timeout.TotalMilliseconds:0} ms (Gerät schläft oder ist getrennt?)");
+                throw new TimeoutException($"WriteFile: no completion after {timeout.TotalMilliseconds:0} ms (device asleep or disconnected?)");
             }
 
             if (!Native.GetOverlappedResult(_handle, _writeOv, out _, false))
@@ -209,7 +209,7 @@ internal sealed unsafe class WinHidPort : IHidPort
 
         if (!started) FreeReadResources();
         if (readerDone) _stop.Dispose();
-        RaiseClosed(_writeStuck ? new HidIoException(Native.ERROR_OPERATION_ABORTED, "WriteFile (hängt)") : null);
+        RaiseClosed(_writeStuck ? new HidIoException(Native.ERROR_OPERATION_ABORTED, "WriteFile (stuck)") : null);
     }
 
     private void FreeReadResources()

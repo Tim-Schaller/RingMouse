@@ -90,7 +90,7 @@ public sealed record ControlReporting(ushort ControlId, bool Diverted, bool Pers
             if (ForceRawXY) s.Add("forceRawXY");
             if (IsRemapped) s.Add($"remap→0x{RemappedTo:X4}");
             if (AnalyticsKeyEvents) s.Add("analytics");
-            return s.Count == 0 ? "nativ" : string.Join(",", s);
+            return s.Count == 0 ? "native" : string.Join(",", s);
         }
     }
 

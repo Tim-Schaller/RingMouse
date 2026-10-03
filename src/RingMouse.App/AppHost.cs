@@ -12,6 +12,7 @@ using RingMouse.App.Settings;
 using RingMouse.App.Tray;
 using RingMouse.Core;
 using RingMouse.Core.Config;
+using RingMouse.Core.Localization;
 using RingMouse.Core.Profiles;
 using RingMouse.Core.State;
 using RingMouse.Device;
@@ -22,6 +23,7 @@ using RingMouse.Platform.Autostart;
 using RingMouse.Platform.Display;
 using RingMouse.Platform.Input;
 using RingMouse.Platform.Windows;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App;
 
@@ -46,6 +48,9 @@ internal interface ISettingsHost
 
     /// <summary>Ring kurz in Originalgröße am Mauszeiger zeigen (mit den Einstellungen aus dem Fenster).</summary>
     void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu);
+
+    /// <summary>Sauber beenden und neu starten (Einstellungen öffnen sich danach wieder).</summary>
+    void Restart();
 }
 
 /// <summary>Composition Root: verdrahtet Config, Geräte, Ring, Aktionen, Tray und Systemereignisse.</summary>
@@ -115,18 +120,18 @@ internal sealed class AppHost : ISettingsHost
                 if (silence > 12_000 && !hung)
                 {
                     hung = true;
-                    _log.LogError("UI-Thread reagiert seit {Seconds} s nicht (Schritt: {Step})", silence / 1000, _uiStep);
+                    _log.LogError("UI thread not responding for {Seconds} s (step: {Step})", silence / 1000, _uiStep);
                 }
                 else if (silence <= 12_000 && hung)
                 {
                     hung = false;
-                    _log.LogWarning("UI-Thread reagiert wieder (war bei: {Step})", _uiStep);
+                    _log.LogWarning("UI thread responding again (was at: {Step})", _uiStep);
                 }
             }
         })
         {
             IsBackground = true,
-            Name = "RingMouse UI-Wächter",
+            Name = "RingMouse UI watchdog",
         };
         thread.Start();
     }
@@ -135,11 +140,11 @@ internal sealed class AppHost : ISettingsHost
     {
         _logging = new AppLogging();
         _log = _logging.Create("RingMouse");
-        StartupTrace.Write("Logger bereit");
+        StartupTrace.Write("Logger ready");
         _logging.VerifyFileOutput();
         StartUiWatchdog();
         _log.LogInformation(
-            "RingMouse {Version} startet: {Exe} · Benutzer {User} · elevated={Elevated} · uiAccess={UiAccess} · Admin-Konto={Admin} · Daten {Root}",
+            "RingMouse {Version} starting: {Exe} · user {User} · elevated={Elevated} · uiAccess={UiAccess} · admin account={Admin} · data {Root}",
             typeof(AppHost).Assembly.GetName().Version, Environment.ProcessPath, Environment.UserName, ProcessRights.IsElevated,
             ProcessRights.HasUiAccess, ProcessRights.UserIsAdministrator, AppPaths.Root);
         Autostart = new AutostartService(_logging.Create("Autostart"));
@@ -148,28 +153,30 @@ internal sealed class AppHost : ISettingsHost
         var load = _configStore.LoadOrCreate();
         _configStore.WriteSchema(AppPaths.SchemaFile);
         var config = _configStore.Current;
+        Lang.Apply(config.General.Language);
         _logging.SetLevel(config.General.LogLevel);
         _logging.RawHidEnabled = config.Debug.RawHidLog;
 
-        Step("Zustand/Hooks/Geräte anlegen");
+        Step("Create state/hooks/devices");
         _state = new StateStore(AppPaths.StateFile, _logging.Create("State"));
         if (CursorHider.Initialize(AppPaths.CursorMarkerFile))
-            _log.LogWarning("Mauszeiger war nach einem Abbruch noch ausgeblendet – wiederhergestellt");
+            _log.LogWarning("Mouse pointer was still hidden after a crash – restored");
         _hooks = new LowLevelInputHooks(_logging.Create("Hooks"));
         _hookCoordinator = new HookCoordinator(_hooks);
         _devices = new DeviceService(new WinHidTransport(), new WinHidDeviceWatcher(), _logging.Create("Device"));
         _actions = new ActionExecutor(_logging.Create("Actions"), new DpiController(_devices), () => Dispatcher.BeginInvoke(ShowSettings));
         _ring = new RingController(Dispatcher, _hookCoordinator, _actions, _logging.Create("Ring"), config);
         _router = new InputRouter(_ring, _actions, _hookCoordinator, _logging.Create("Input"), config);
-        Step("Tray-Symbol anlegen");
+        Step("Create tray icon");
         _tray = new TrayController(ShowSettings, OpenConfigFile, OpenLogs, SetRawLog, ReconnectAll, Exit);
         _tray.RawLogChecked = config.Debug.RawHidLog;
         _tray.Quiet = HasArg("--quiet") || HasArg("--selftest");
         _battery = new BatteryNotifier(_tray, _state, _logging.Create("Battery"));
 
-        _actions.Failed += f => Dispatcher.BeginInvoke(() => _tray.Notify("Aktion nicht ausgeführt", f.Message, TrayNotice.Warning));
-        _router.ElevationBlocked += name => Dispatcher.BeginInvoke(() => _tray.Notify("Fenster mit Adminrechten",
-            $"{name} läuft mit höheren Rechten. Windows blockiert dorthin Eingaben von RingMouse (UIPI) – siehe README \"uiAccess\".",
+        _actions.Failed += f => Dispatcher.BeginInvoke(() => _tray.Notify(L("Action not executed", "Aktion nicht ausgeführt"), f.Message, TrayNotice.Warning));
+        _router.ElevationBlocked += name => Dispatcher.BeginInvoke(() => _tray.Notify(L("Window with admin rights", "Fenster mit Adminrechten"),
+            L($"{name} runs with higher rights. Windows blocks input from RingMouse there (UIPI) – see README \"uiAccess\".",
+                $"{name} läuft mit höheren Rechten. Windows blockiert dorthin Eingaben von RingMouse (UIPI) – siehe README \"uiAccess\"."),
             TrayNotice.Warning));
 
         _devices.ButtonChanged += _router.OnButton;
@@ -178,35 +185,37 @@ internal sealed class AppHost : ISettingsHost
         _devices.DeviceRemoved += s => Dispatcher.BeginInvoke(() => OnDeviceRemoved(s));
         _devices.FrameTraced += _logging.WriteRaw;
 
-        Step("Config anwenden");
+        Step("Apply config");
         ApplyConfig(config);
-        Step("Config-Überwachung");
+        Step("Config watcher");
         _configStore.Changed += c => Dispatcher.BeginInvoke(() => ApplyConfig(c));
-        _configStore.LoadFailed += r => Dispatcher.BeginInvoke(() => _tray.Notify("Config-Fehler – bisherige Einstellungen bleiben aktiv",
+        _configStore.LoadFailed += r => Dispatcher.BeginInvoke(() => _tray.Notify(
+            L("Config error – previous settings remain active", "Config-Fehler – bisherige Einstellungen bleiben aktiv"),
             r.ErrorMessage ?? string.Join("\n", r.Issues.Where(i => i.Severity == IssueSeverity.Error).Take(3)), TrayNotice.Warning));
         _configStore.StartWatching();
         if (!load.Success)
         {
             var message = load.ErrorMessage ?? string.Join("\n", load.Issues.Where(i => i.Severity == IssueSeverity.Error).Take(3));
-            _log.LogError("config.json fehlerhaft – starte mit Standard-Config (Datei bleibt unverändert): {Error}", message);
-            _tray.Notify("config.json fehlerhaft", $"Es wird die Standard-Config verwendet.\n{message}", TrayNotice.Error);
+            _log.LogError("config.json is invalid – starting with the default config (file left unchanged): {Error}", message);
+            _tray.Notify(L("config.json is invalid", "config.json fehlerhaft"),
+                L($"Using the default config.\n{message}", $"Es wird die Standard-Config verwendet.\n{message}"), TrayNotice.Error);
         }
 
-        Step("Systemereignisse anmelden");
+        Step("Subscribe to system events");
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += OnSessionSwitch;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
-        Step("Einzelinstanz-Signale");
+        Step("Single-instance signals");
         ListenForSecondInstance();
 
-        Step("Geräteverwaltung starten");
+        Step("Start device service");
         _devices.Start();
-        Step("Ring vorwärmen");
+        Step("Warm up ring");
         _ring.Warmup();
-        Step("Tray aktualisieren");
+        Step("Update tray");
         UpdateTray();
 
-        Step("Options+-Prüfung");
+        Step("Options+ check");
         _optionsPlusTimer = new DispatcherTimer(TimeSpan.FromSeconds(60), DispatcherPriority.Background, (_, _) => CheckOptionsPlus(), Dispatcher);
         _optionsPlusTimer.Start();
         CheckOptionsPlus();
@@ -215,13 +224,15 @@ internal sealed class AppHost : ISettingsHost
         {
             _state.State.FirstRunCompleted = true;
             _state.Save();
-            _tray.Notify("RingMouse läuft", "Einstellungen und Akkustand findest du im Tray-Symbol.", TrayNotice.Info);
+            _tray.Notify(L("RingMouse is running", "RingMouse läuft"),
+                L("You'll find settings and the battery level in the tray icon.", "Einstellungen und Akkustand findest du im Tray-Symbol."),
+                TrayNotice.Info);
         }
         if (HasArg("--settings")) ShowSettings();
         if (HasArg("--selftest")) _ = RunSelfTestAsync();
-        Step("läuft");
-        _log.LogInformation("Start abgeschlossen");
-        StartupTrace.Write("Start abgeschlossen");
+        Step("running");
+        _log.LogInformation("Startup complete");
+        StartupTrace.Write("Startup complete");
     }
 
     private bool HasArg(string name) => _args.Contains(name, StringComparer.OrdinalIgnoreCase);
@@ -236,7 +247,7 @@ internal sealed class AppHost : ISettingsHost
         _actions.DryRun = true; // bewegt der Benutzer währenddessen die Maus, darf keine Aktion (z.B. Sperren) auslösen
         for (var i = 0; i < 150 && !_devicesByKey.Values.Any(d => d.State == DeviceState.Ready); i++) await Task.Delay(100);
         var device = _devicesByKey.Values.FirstOrDefault(d => d.State == DeviceState.Ready);
-        _log.LogInformation("SELFTEST: Gerät {Name} bereit={Ready}, umgeleitet [{Diverted}], Akku {Battery} %",
+        _log.LogInformation("SELFTEST: device {Name} ready={Ready}, diverted [{Diverted}], battery {Battery} %",
             device?.Name ?? "–", device is not null, device is null ? "" : string.Join(", ", device.DivertedControls.Select(ControlIds.Format)),
             device?.Battery?.EffectivePercent);
 
@@ -245,7 +256,7 @@ internal sealed class AppHost : ISettingsHost
         if (cid == 0) cid = ringControls.FirstOrDefault();
         if (cid == 0)
         {
-            _log.LogWarning("SELFTEST: keine Taste öffnet einen Ring – Ende");
+            _log.LogWarning("SELFTEST: no button opens a ring – end");
             Exit();
             return;
         }
@@ -254,7 +265,7 @@ internal sealed class AppHost : ISettingsHost
         _router.OnButton(new ButtonEvent("selftest", cid, true, Stopwatch.GetTimestamp()));
         await Task.Delay(900);
         var during = ForegroundWindow.Capture();
-        _log.LogInformation("SELFTEST: Ring sichtbar={Visible}, Fokus unverändert={Same} (vorher {Before}, jetzt {Now})",
+        _log.LogInformation("SELFTEST: ring visible={Visible}, focus unchanged={Same} (before {Before}, now {Now})",
             _ring.Window.IsVisible, before.Handle == during.Handle, before.ProcessName, during.ProcessName);
 
         // Zeiger exakt in die Ringmitte und sofort loslassen, damit Mausbewegungen während des Tests nichts auswählen
@@ -262,10 +273,10 @@ internal sealed class AppHost : ISettingsHost
         RingMouse.Platform.Display.Monitors.SetCursorPosition((int)Math.Round(center.X), (int)Math.Round(center.Y));
         _router.OnButton(new ButtonEvent("selftest", cid, false, Stopwatch.GetTimestamp()));
         await Task.Delay(400);
-        _log.LogInformation("SELFTEST: nach Loslassen in der Mitte sichtbar={Visible} (erwartet: false), Ring {State}",
+        _log.LogInformation("SELFTEST: after release in the center visible={Visible} (expected: false), ring {State}",
             _ring.Window.IsVisible, _ring.DiagnosticState);
         RingMouse.Platform.Display.Monitors.SetCursorPosition(cursor.X, cursor.Y);
-        _log.LogInformation("SELFTEST: Ende – beende RingMouse");
+        _log.LogInformation("SELFTEST: end – exiting RingMouse");
         Exit();
     }
 
@@ -300,7 +311,7 @@ internal sealed class AppHost : ISettingsHost
         });
 
         foreach (var issue in _configStore.CurrentIssues) _log.LogWarning("Config: {Issue}", issue);
-        _log.LogInformation("Config angewendet: umgeleitet [{Divert}], Raw-XY [{RawXY}], {Profiles} Profil(e), Ring-Modus {Mode}",
+        _log.LogInformation("Config applied: diverted [{Divert}], Raw-XY [{RawXY}], {Profiles} profile(s), ring mode {Mode}",
             string.Join(", ", divert.Select(ControlIds.Format)), string.Join(", ", rawXY.Select(ControlIds.Format)),
             config.Profiles.Count, config.Ring.Mode);
 
@@ -350,16 +361,17 @@ internal sealed class AppHost : ISettingsHost
         var running = OptionsPlusDetector.RunningProcesses();
         if (running.Count > 0)
         {
-            _tray.SetWarning("⚠ Logi Options+ läuft und überschreibt Tasten");
+            _tray.SetWarning(L("⚠ Logi Options+ is running and overrides buttons", "⚠ Logi Options+ läuft und überschreibt Tasten"));
             if (_optionsPlusWarned) return;
             _optionsPlusWarned = true;
-            _log.LogWarning("Logi Options+ läuft ({Processes}) – überschreibt Tastenumleitungen und aktiviert Analytics-Events", string.Join(", ", running));
-            _tray.Notify("Logi Options+ läuft",
-                "Options+ überschreibt die Tastenumleitungen von RingMouse. Bitte Options+ beenden bzw. deinstallieren.", TrayNotice.Warning);
+            _log.LogWarning("Logi Options+ is running ({Processes}) – it overrides button diversions and enables analytics events", string.Join(", ", running));
+            _tray.Notify(L("Logi Options+ is running", "Logi Options+ läuft"),
+                L("Options+ overrides RingMouse's button diversions. Please quit or uninstall Options+.",
+                    "Options+ überschreibt die Tastenumleitungen von RingMouse. Bitte Options+ beenden bzw. deinstallieren."), TrayNotice.Warning);
         }
         else
         {
-            if (_optionsPlusWarned) _log.LogInformation("Logi Options+ läuft nicht mehr");
+            if (_optionsPlusWarned) _log.LogInformation("Logi Options+ is no longer running");
             _optionsPlusWarned = false;
             _tray.SetWarning(null);
         }
@@ -371,23 +383,23 @@ internal sealed class AppHost : ISettingsHost
     {
         if (e.Mode == PowerModes.Resume)
         {
-            _log.LogInformation("Standby beendet – Geräte werden neu konfiguriert");
-            _devices.RequestReconfigureAll("Standby beendet", TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(15));
+            _log.LogInformation("Standby ended – reconfiguring devices");
+            _devices.RequestReconfigureAll("Standby ended", TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(15));
             _hookCoordinator.Reinstall();
         }
         else if (e.Mode == PowerModes.Suspend)
         {
-            _log.LogInformation("Standby beginnt");
+            _log.LogInformation("Entering standby");
         }
     }
 
     private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
     {
-        _log.LogInformation("Sitzung: {Reason}", e.Reason);
+        _log.LogInformation("Session: {Reason}", e.Reason);
         if (e.Reason is SessionSwitchReason.SessionUnlock or SessionSwitchReason.ConsoleConnect or SessionSwitchReason.RemoteConnect
             or SessionSwitchReason.SessionLogon)
         {
-            _devices.RequestReconfigureAll($"Sitzung: {e.Reason}", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+            _devices.RequestReconfigureAll($"Session: {e.Reason}", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
             _hookCoordinator.Reinstall();
         }
     }
@@ -412,7 +424,7 @@ internal sealed class AppHost : ISettingsHost
         _exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ExitEventName);
         _exitWait = ThreadPool.RegisterWaitForSingleObject(_exitEvent, (_, _) => Dispatcher.BeginInvoke(() =>
         {
-            _log.LogInformation("Beenden per --exit angefordert");
+            _log.LogInformation("Exit requested via --exit");
             Exit();
         }), null, Timeout.Infinite, executeOnlyOnce: true);
     }
@@ -421,7 +433,7 @@ internal sealed class AppHost : ISettingsHost
 
     public void ShowSettings()
     {
-        Step("Einstellungen öffnen");
+        Step("Open settings");
         if (_settings is null)
         {
             _settings = new SettingsWindow(this);
@@ -430,7 +442,7 @@ internal sealed class AppHost : ISettingsHost
         _settings.Show();
         if (_settings.WindowState == WindowState.Minimized) _settings.WindowState = WindowState.Normal;
         _settings.Activate();
-        Step("läuft");
+        Step("running");
     }
 
     public void SaveConfig(RingMouseConfig config) => _configStore.Save(config);
@@ -455,8 +467,8 @@ internal sealed class AppHost : ISettingsHost
 
     public void ReconnectAll()
     {
-        _log.LogInformation("Manuell: Geräte neu verbinden");
-        _devices.RequestReconfigureAll("manuell", TimeSpan.Zero);
+        _log.LogInformation("Manual: reconnecting devices");
+        _devices.RequestReconfigureAll("manual", TimeSpan.Zero);
     }
 
     public Task<int?> SetDpiNowAsync(string deviceKey, int dpi) => _devices.SetDpiAsync(deviceKey, dpi);
@@ -476,7 +488,7 @@ internal sealed class AppHost : ISettingsHost
 
         _state.State.RingSetupOffered = true;
         _state.Save();
-        _log.LogInformation("Keine Taste öffnet einen Ring – Ersteinrichtung wird angeboten ({Device})", snapshot.Name);
+        _log.LogInformation("No button opens a ring – offering first-run setup ({Device})", snapshot.Name);
         _ringSetup = new RingSetupWindow(this, AssignRingButton);
         _ringSetup.Closed += (_, _) => _ringSetup = null;
         _ringSetup.Show();
@@ -500,10 +512,20 @@ internal sealed class AppHost : ISettingsHost
         if (KeyOf(cid) is { } existing) config.Buttons.Remove(existing);
         config.Buttons[ControlIds.Format(cid)] = new OpenRingAction { Ring = ring };
         _configStore.Save(config);
-        _log.LogInformation("Ersteinrichtung: {Cid} ({Name}) öffnet jetzt den Ring \"{Ring}\"", ControlIds.Format(cid), ControlIds.GetName(cid), ring);
+        _log.LogInformation("First-run setup: {Cid} ({Name}) now opens ring \"{Ring}\"", ControlIds.Format(cid), ControlIds.GetName(cid), ring);
     }
 
     public void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu) => _ring.ShowPreview(ring, settings, isSubmenu);
+
+    /// <summary>Nach dem Beenden startet Program.Main eine neue Instanz.</summary>
+    public bool RestartRequested { get; private set; }
+
+    public void Restart()
+    {
+        _log.LogInformation("Restart requested");
+        RestartRequested = true;
+        Exit();
+    }
 
     private void SetRawLog(bool enabled)
     {
@@ -520,7 +542,7 @@ internal sealed class AppHost : ISettingsHost
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Fehler beim Beenden");
+            _log.LogError(ex, "Error while exiting");
         }
         finally
         {
@@ -539,7 +561,7 @@ internal sealed class AppHost : ISettingsHost
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Geräte konnten nicht sauber zurückgesetzt werden");
+            _log.LogWarning(ex, "Devices could not be reset cleanly");
         }
         EndShutdown();
     }
@@ -556,7 +578,7 @@ internal sealed class AppHost : ISettingsHost
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Geräte konnten beim Abmelden nicht zurückgesetzt werden");
+            _log.LogWarning(ex, "Devices could not be reset during sign-out");
         }
         EndShutdown();
     }
@@ -564,7 +586,7 @@ internal sealed class AppHost : ISettingsHost
     /// <summary>UI-gebundene Aufräumarbeiten (UI-Thread).</summary>
     private void BeginShutdown()
     {
-        _log.LogInformation("RingMouse wird beendet");
+        _log.LogInformation("RingMouse shutting down");
         _uiWatchdogStop.Set();
         CursorHider.Show();
         _optionsPlusTimer?.Stop();
@@ -599,7 +621,7 @@ internal sealed class AppHost : ISettingsHost
             }
             catch (Exception ex)
             {
-                _log.LogDebug(ex, "Fehler beim Aufräumen");
+                _log.LogDebug(ex, "Error during cleanup");
             }
         }
     }

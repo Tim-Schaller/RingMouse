@@ -6,6 +6,7 @@ using RingMouse.App.Ring;
 using RingMouse.App.Settings;
 using RingMouse.App.Tray;
 using RingMouse.Core.Config;
+using RingMouse.Core.Localization;
 using RingMouse.Device;
 using RingMouse.HidPlusPlus;
 using RingMouse.HidPlusPlus.Features;
@@ -15,11 +16,21 @@ namespace RingMouse.App.Diagnostics;
 
 /// <summary>
 /// "RingMouse.exe --render-ui &lt;ordner&gt;": rendert Ring (hell/dunkel), Tray-Icons und alle Einstellungsseiten
-/// als PNG – zur visuellen Kontrolle ohne echte Maus. Startet keine Geräte und ändert nichts.
+/// als PNG – zur visuellen Kontrolle ohne echte Maus, je Sprache in einen Unterordner (en, de).
+/// Startet keine Geräte und ändert nichts.
 /// </summary>
 internal static class UiSnapshots
 {
     public static void RenderAll(string directory)
+    {
+        foreach (var (language, folder) in new[] { (UiLanguage.English, "en"), (UiLanguage.German, "de") })
+        {
+            Lang.Apply(language);
+            RenderLanguage(Path.Combine(directory, folder));
+        }
+    }
+
+    private static void RenderLanguage(string directory)
     {
         Directory.CreateDirectory(directory);
         var config = DefaultConfig.Create();
@@ -105,7 +116,7 @@ internal static class UiSnapshots
                 scroll.ScrollToVerticalOffset(0);
             }
         }
-        File.WriteAllText(Path.Combine(directory, "settings-dirty.txt"), window.IsDirty ? $"DIRTY nach Seite {dirtyAfter}" : "sauber");
+        File.WriteAllText(Path.Combine(directory, "settings-dirty.txt"), window.IsDirty ? $"DIRTY after page {dirtyAfter}" : "clean");
         window.Close();
 
         // Ersteinrichtung: erkannte Taste ("Fertig!") und ohne Tastendruck ("Nochmal")
@@ -238,5 +249,6 @@ internal static class UiSnapshots
         public ButtonEvent? CaptureResult { get; init; }
         public Task<ButtonEvent?> CaptureButtonAsync(Action? armed, CancellationToken ct) => Task.FromResult(CaptureResult);
         public void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu) { }
+        public void Restart() { }
     }
 }

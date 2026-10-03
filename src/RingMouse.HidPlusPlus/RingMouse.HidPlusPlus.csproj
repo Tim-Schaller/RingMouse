@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>RingMouse.HidPlusPlus</RootNamespace>
-    <Description>HID++ 1.0/2.0 Protokollbibliothek (Logitech) mit schlankem Win32-HID-Transport. Keine Abhängigkeiten.</Description>
+    <Description>HID++ 1.0/2.0 protocol library (Logitech) with a lean Win32 HID transport. No dependencies.</Description>
   </PropertyGroup>
 
   <ItemGroup>

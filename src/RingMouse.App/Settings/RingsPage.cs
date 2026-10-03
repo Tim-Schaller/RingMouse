@@ -5,6 +5,7 @@ using System.Windows.Media;
 using RingMouse.App.Ring;
 using RingMouse.Core.Config;
 using RingMouse.Core.Ring;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -30,27 +31,30 @@ internal sealed class RingsPage : UserControl
 
         // Spalte 1: Ringe
         var left = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
-        left.Children.Add(Form.Heading("Ringe"));
+        left.Children.Add(Form.Heading(L("Rings", "Ringe")));
         left.Children.Add(_rings);
-        left.Children.Add(Form.Buttons(Form.Button("Neu", NewRing), Form.Button("Umbenennen", RenameRing), Form.Button("Löschen", DeleteRing)));
-        left.Children.Add(Form.Hint("\"main\" öffnet die DPI-Taste (siehe Tasten). Untermenüs sind eigene Ringe."));
+        left.Children.Add(Form.Buttons(Form.Button(L("New", "Neu"), NewRing), Form.Button(L("Rename", "Umbenennen"), RenameRing),
+            Form.Button(L("Delete", "Löschen"), DeleteRing)));
+        left.Children.Add(Form.Hint(L("\"main\" is opened by the ring button (see Buttons). Submenus are separate rings.",
+            "\"main\" öffnet die Ring-Taste (siehe Tasten). Untermenüs sind eigene Ringe.")));
         grid.Children.Add(left);
 
         // Spalte 2: Vorschau + Segmentliste
         var middle = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
-        middle.Children.Add(Form.Heading("Segmente"));
+        middle.Children.Add(Form.Heading(L("Segments", "Segmente")));
         middle.Children.Add(_preview);
         middle.Children.Add(_segments);
         middle.Children.Add(Form.Buttons(
-            Form.Button("+", AddSegment), Form.Button("Entfernen", RemoveSegment), Form.Button("↑", () => MoveSegment(-1)),
-            Form.Button("↓", () => MoveSegment(1)), Form.Button("Leer/belegt", ToggleEmpty)));
-        middle.Children.Add(Form.Hint("Segment 1 liegt oben, dann im Uhrzeigersinn. In der Vorschau anklicken zum Bearbeiten."));
+            Form.Button("+", AddSegment), Form.Button(L("Remove", "Entfernen"), RemoveSegment), Form.Button("↑", () => MoveSegment(-1)),
+            Form.Button("↓", () => MoveSegment(1)), Form.Button(L("Empty/assigned", "Leer/belegt"), ToggleEmpty)));
+        middle.Children.Add(Form.Hint(L("Segment 1 is at the top, then clockwise. Click it in the preview to edit it.",
+            "Segment 1 liegt oben, dann im Uhrzeigersinn. In der Vorschau anklicken zum Bearbeiten.")));
         Grid.SetColumn(middle, 1);
         grid.Children.Add(middle);
 
         // Spalte 3: Segment-Editor + Verhalten
         var right = new StackPanel();
-        right.Children.Add(Form.Heading("Segment bearbeiten"));
+        right.Children.Add(Form.Heading(L("Edit segment", "Segment bearbeiten")));
         right.Children.Add(_segmentEditor);
         right.Children.Add(BuildAppearance());
         right.Children.Add(BuildBehaviour());
@@ -103,7 +107,7 @@ internal sealed class RingsPage : UserControl
                 var s = ring.Segments[i];
                 var where = Direction(i, ring.Segments.Count);
                 _segments.Items.Add(s?.Action is null
-                    ? $"{i + 1} · {where}: (leer)"
+                    ? L($"{i + 1} · {where}: (empty)", $"{i + 1} · {where}: (leer)")
                     : $"{i + 1} · {where}: {s.Label} – {s.Action.Describe()}");
             }
         }
@@ -153,19 +157,19 @@ internal sealed class RingsPage : UserControl
         var ring = CurrentRing;
         if (ring is null || _segmentIndex < 0 || _segmentIndex >= ring.Segments.Count)
         {
-            _segmentEditor.Children.Add(Form.Hint("Links ein Segment auswählen."));
+            _segmentEditor.Children.Add(Form.Hint(L("Select a segment on the left.", "Links ein Segment auswählen.")));
             return;
         }
 
         var segment = ring.Segments[_segmentIndex];
         if (segment is null)
         {
-            _segmentEditor.Children.Add(Form.Hint("Leerer Platz – mit \"Leer/belegt\" eine Aktion anlegen."));
+            _segmentEditor.Children.Add(Form.Hint(L("Empty slot – use \"Empty/assigned\" to add an action.", "Leerer Platz – mit \"Leer/belegt\" eine Aktion anlegen.")));
             return;
         }
 
         var index = _segmentIndex;
-        _segmentEditor.Children.Add(Form.Row("Beschriftung", Form.Text(segment.Label, v =>
+        _segmentEditor.Children.Add(Form.Row(L("Label", "Beschriftung"), Form.Text(segment.Label, v =>
         {
             segment.Label = v;
             Changed(index);
@@ -195,7 +199,8 @@ internal sealed class RingsPage : UserControl
         iconRow.Children.Add(icon);
         iconRow.Children.Add(iconPreview);
         _segmentEditor.Children.Add(Form.Row("Icon", iconRow,
-            "Symbolname, glyph:E72E, file:C:\\pfad\\bild.png, exe:C:\\pfad\\app.exe oder text:AB. Leer = passend zur Aktion."));
+            L("Symbol name, glyph:E72E, file:C:\\path\\image.png, exe:C:\\path\\app.exe or text:AB. Empty = matching the action.",
+                "Symbolname, glyph:E72E, file:C:\\pfad\\bild.png, exe:C:\\pfad\\app.exe oder text:AB. Leer = passend zur Aktion.")));
         UpdateIcon();
 
         var editor = new ActionEditor(ActionContext.Segment, _ctx.RingNames) { Action = segment.Action };
@@ -215,7 +220,7 @@ internal sealed class RingsPage : UserControl
         var s = ring.Segments[index];
         _refreshing = true;
         _segments.Items[index] = s?.Action is null
-            ? $"{index + 1} · {Direction(index, ring.Segments.Count)}: (leer)"
+            ? L($"{index + 1} · {Direction(index, ring.Segments.Count)}: (empty)", $"{index + 1} · {Direction(index, ring.Segments.Count)}: (leer)")
             : $"{index + 1} · {Direction(index, ring.Segments.Count)}: {s.Label} – {s.Action.Describe()}";
         _segments.SelectedIndex = index;
         _refreshing = false;
@@ -234,7 +239,7 @@ internal sealed class RingsPage : UserControl
         var size = Form.Slider(r.Radius, 100, 260, v => { r.Radius = v; Changed(); }, 5);
         var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
         sizeRow.Children.Add(size);
-        sizeRow.Children.Add(Form.Button("Am Bildschirm ansehen", () =>
+        sizeRow.Children.Add(Form.Button(L("Show on screen", "Am Bildschirm ansehen"), () =>
         {
             if (CurrentRing is { } ring)
                 _ctx.Host.PreviewRing(ring, ConfigSerializer.Clone(r), !_ringName!.Equals(DefaultConfig.MainRing, StringComparison.OrdinalIgnoreCase));
@@ -243,11 +248,11 @@ internal sealed class RingsPage : UserControl
 
         var pointerRow = new StackPanel();
         pointerRow.Children.Add(Form.Slider(r.PointerSize, 4, 30, v => { r.PointerSize = v; Changed(); }));
-        pointerRow.Children.Add(new ColorPicker(r.PointerColor, ColorPicker.PointerPresets, "Automatisch", v => { r.PointerColor = v; Changed(); }));
+        pointerRow.Children.Add(new ColorPicker(r.PointerColor, ColorPicker.PointerPresets, L("Automatic", "Automatisch"), v => { r.PointerColor = v; Changed(); }));
 
         return new Expander
         {
-            Header = "Aussehen des Rings",
+            Header = L("Ring appearance", "Aussehen des Rings"),
             IsExpanded = true,
             Margin = new Thickness(0, 16, 0, 0),
             Content = new StackPanel
@@ -255,19 +260,24 @@ internal sealed class RingsPage : UserControl
                 Margin = new Thickness(4, 8, 0, 0),
                 Children =
                 {
-                    Form.Row("Größe (Radius, DIP)", sizeRow,
-                        "Die Vorschau hier wird immer eingepasst – \"Am Bildschirm ansehen\" zeigt den Ring kurz in echter Größe am Mauszeiger."),
-                    Form.Row("Symbole & Schrift (%)", Form.Slider(r.TextScale, 50, 200, v => { r.TextScale = (int)v; Changed(); }, 5)),
-                    Form.Row("Farbschema", Form.Choice(
-                        [(ThemePreference.System, "Wie Windows"), (ThemePreference.Light, "Hell"), (ThemePreference.Dark, "Dunkel")],
+                    Form.Row(L("Size (radius, DIP)", "Größe (Radius, DIP)"), sizeRow,
+                        L("The preview here is always scaled to fit – \"Show on screen\" briefly shows the ring at its real size at the mouse pointer.",
+                            "Die Vorschau hier wird immer eingepasst – \"Am Bildschirm ansehen\" zeigt den Ring kurz in echter Größe am Mauszeiger.")),
+                    Form.Row(L("Icons & text (%)", "Symbole & Schrift (%)"), Form.Slider(r.TextScale, 50, 200, v => { r.TextScale = (int)v; Changed(); }, 5)),
+                    Form.Row(L("Color scheme", "Farbschema"), Form.Choice(
+                        [(ThemePreference.System, L("Like Windows", "Wie Windows")), (ThemePreference.Light, L("Light", "Hell")), (ThemePreference.Dark, L("Dark", "Dunkel"))],
                         r.Theme, v => { r.Theme = v; Changed(); })),
-                    Form.Row("Ringfarbe", new ColorPicker(r.RingColor, ColorPicker.RingPresets, "Wie Farbschema", v => { r.RingColor = v; Changed(); }),
-                        "Schrift und Abstufungen werden aus der Farbe abgeleitet."),
-                    Form.Row("Markierung", new ColorPicker(r.AccentColor, ColorPicker.AccentPresets, "Windows-Akzent", v => { r.AccentColor = v; Changed(); })),
-                    Form.Row("Deckkraft (%)", Form.Slider(r.Opacity, 30, 100, v => { r.Opacity = (int)v; Changed(); }, 5)),
-                    Form.Row("Zeigerpunkt", pointerRow, "Größe (Durchmesser in DIP) und Farbe des Punkts, der beim Halten die Richtung zeigt."),
-                    Form.Row("", Form.Check("Beschriftungen anzeigen", r.ShowLabels, v => { r.ShowLabels = v; Changed(); })),
-                    Form.Row("", Form.Check("Animationen", r.Animation, v => { r.Animation = v; _ctx.MarkDirty(); })),
+                    Form.Row(L("Ring color", "Ringfarbe"),
+                        new ColorPicker(r.RingColor, ColorPicker.RingPresets, L("Like color scheme", "Wie Farbschema"), v => { r.RingColor = v; Changed(); }),
+                        L("Text and shades are derived from the color.", "Schrift und Abstufungen werden aus der Farbe abgeleitet.")),
+                    Form.Row(L("Highlight", "Markierung"),
+                        new ColorPicker(r.AccentColor, ColorPicker.AccentPresets, L("Windows accent", "Windows-Akzent"), v => { r.AccentColor = v; Changed(); })),
+                    Form.Row(L("Opacity (%)", "Deckkraft (%)"), Form.Slider(r.Opacity, 30, 100, v => { r.Opacity = (int)v; Changed(); }, 5)),
+                    Form.Row(L("Pointer dot", "Zeigerpunkt"), pointerRow,
+                        L("Size (diameter in DIP) and color of the dot that shows the direction while holding.",
+                            "Größe (Durchmesser in DIP) und Farbe des Punkts, der beim Halten die Richtung zeigt.")),
+                    Form.Row("", Form.Check(L("Show labels", "Beschriftungen anzeigen"), r.ShowLabels, v => { r.ShowLabels = v; Changed(); })),
+                    Form.Row("", Form.Check(L("Animations", "Animationen"), r.Animation, v => { r.Animation = v; _ctx.MarkDirty(); })),
                 },
             },
         };
@@ -279,7 +289,7 @@ internal sealed class RingsPage : UserControl
         void Dirty() => _ctx.MarkDirty();
         var expander = new Expander
         {
-            Header = "Verhalten des Rings",
+            Header = L("Ring behavior", "Verhalten des Rings"),
             IsExpanded = false,
             Margin = new Thickness(0, 12, 0, 0),
             Content = new StackPanel
@@ -287,25 +297,32 @@ internal sealed class RingsPage : UserControl
                 Margin = new Thickness(4, 8, 0, 0),
                 Children =
                 {
-                    Form.Row("Bedienung", Form.Choice(
-                        [(RingMode.Hybrid, "Hybrid – kurz tippen = offen lassen, halten = loslassen wählt"),
-                         (RingMode.Hold, "Halten – loslassen führt aus"),
-                         (RingMode.Tap, "Tippen – Ring bleibt offen, Klick führt aus")],
+                    Form.Row(L("Mode", "Bedienung"), Form.Choice(
+                        [(RingMode.Hybrid, L("Hybrid – tap briefly = keep open, hold = releasing selects", "Hybrid – kurz tippen = offen lassen, halten = loslassen wählt")),
+                         (RingMode.Hold, L("Hold – releasing runs the action", "Halten – loslassen führt aus")),
+                         (RingMode.Tap, L("Tap – ring stays open, a click runs the action", "Tippen – Ring bleibt offen, Klick führt aus"))],
                         r.Mode, v => { r.Mode = v; Dirty(); })),
                     Form.Row("Deadzone (DIP)", Form.Slider(r.Deadzone, 10, 60, v => { r.Deadzone = v; Dirty(); RefreshPreview(); }),
-                        "Loslassen/Klicken in der Mitte bricht ab (im Untermenü: zurück)."),
-                    Form.Row("Tipp-Schwelle (ms)", Form.Number(r.TapThresholdMs, v => { r.TapThresholdMs = (int)v; Dirty(); }, 50, 2000)),
+                        L("Releasing/clicking in the center cancels (in a submenu: back).", "Loslassen/Klicken in der Mitte bricht ab (im Untermenü: zurück).")),
+                    Form.Row(L("Tap threshold (ms)", "Tipp-Schwelle (ms)"), Form.Number(r.TapThresholdMs, v => { r.TapThresholdMs = (int)v; Dirty(); }, 50, 2000)),
                     Form.Row("Raw-XY", Form.Choice(
-                        [(RawXYUsage.Auto, "Automatisch (Zeiger bleibt beim Halten stehen, wenn die Taste es kann)"),
-                         (RawXYUsage.On, "Immer anfordern"), (RawXYUsage.Off, "Aus (Zeigerposition verwenden)")],
+                        [(RawXYUsage.Auto, L("Automatic (pointer stays still while holding if the button supports it)",
+                             "Automatisch (Zeiger bleibt beim Halten stehen, wenn die Taste es kann)")),
+                         (RawXYUsage.On, L("Always request", "Immer anfordern")), (RawXYUsage.Off, L("Off (use pointer position)", "Aus (Zeigerposition verwenden)"))],
                         r.UseRawXY, v => { r.UseRawXY = v; Dirty(); })),
-                    Form.Row("Raw-XY-Empfindlichkeit", Form.Number(r.RawXYScale, v => { r.RawXYScale = v; Dirty(); }, 0.05, 10, "0.00")),
-                    Form.Row("Automatisch schließen (s)", Form.Number(r.AutoCloseSeconds, v => { r.AutoCloseSeconds = (int)v; Dirty(); }, 0, 600),
-                        "Nur im Tippen-Modus; 0 = nie."),
-                    Form.Row("", Form.Check("Mauszeiger danach zurücksetzen", r.RestoreCursor, v => { r.RestoreCursor = v; Dirty(); })),
-                    Form.Row("", Form.Check("Untermenü beim Halten durch Weiterschieben öffnen", r.SubmenuPush, v => { r.SubmenuPush = v; Dirty(); }),
-                        "Taste halten, Richtung Untermenü weiter nach außen schieben, dann über dem Eintrag loslassen."),
-                    Form.Row("", Form.Check("Mauszeiger beim Halten ausblenden (Punkt zeigt die Richtung)", r.HideCursor, v => { r.HideCursor = v; Dirty(); })),
+                    Form.Row(L("Raw-XY sensitivity", "Raw-XY-Empfindlichkeit"), Form.Number(r.RawXYScale, v => { r.RawXYScale = v; Dirty(); }, 0.05, 10, "0.00")),
+                    Form.Row(L("Close automatically (s)", "Automatisch schließen (s)"),
+                        Form.Number(r.AutoCloseSeconds, v => { r.AutoCloseSeconds = (int)v; Dirty(); }, 0, 600),
+                        L("Tap mode only; 0 = never.", "Nur im Tippen-Modus; 0 = nie.")),
+                    Form.Row("", Form.Check(L("Restore the mouse pointer afterwards", "Mauszeiger danach zurücksetzen"), r.RestoreCursor,
+                        v => { r.RestoreCursor = v; Dirty(); })),
+                    Form.Row("", Form.Check(L("Open submenus while holding by pushing further (push-through)", "Untermenü beim Halten durch Weiterschieben öffnen"),
+                            r.SubmenuPush, v => { r.SubmenuPush = v; Dirty(); }),
+                        L("Hold the button, push further out towards the submenu, then release over the entry.",
+                            "Taste halten, Richtung Untermenü weiter nach außen schieben, dann über dem Eintrag loslassen.")),
+                    Form.Row("", Form.Check(L("Hide the mouse pointer while holding (the dot shows the direction)",
+                            "Mauszeiger beim Halten ausblenden (Punkt zeigt die Richtung)"), r.HideCursor,
+                        v => { r.HideCursor = v; Dirty(); })),
                 },
             },
         };
@@ -316,13 +333,13 @@ internal sealed class RingsPage : UserControl
 
     private void NewRing()
     {
-        var name = InputDialog.Ask(Window.GetWindow(this), "Neuer Ring", "Name des Rings (z.B. \"office\"):");
+        var name = InputDialog.Ask(Window.GetWindow(this), L("New ring", "Neuer Ring"), L("Ring name (e.g. \"office\"):", "Name des Rings (z.B. \"office\"):"));
         if (string.IsNullOrWhiteSpace(name) || _ctx.Config.Rings.ContainsKey(name)) return;
         _ctx.Config.Rings[name] = new RingDefinition
         {
             Title = name,
-            Segments = [new RingSegment { Label = "Kopieren", Icon = "Copy", Action = new KeysAction { Keys = "Ctrl+C" } },
-                        new RingSegment { Label = "Einfügen", Icon = "Paste", Action = new KeysAction { Keys = "Ctrl+V" } },
+            Segments = [new RingSegment { Label = L("Copy", "Kopieren"), Icon = "Copy", Action = new KeysAction { Keys = "Ctrl+C" } },
+                        new RingSegment { Label = L("Paste", "Einfügen"), Icon = "Paste", Action = new KeysAction { Keys = "Ctrl+V" } },
                         null, null],
         };
         _ctx.MarkDirty();
@@ -332,7 +349,7 @@ internal sealed class RingsPage : UserControl
     private void RenameRing()
     {
         if (_ringName is null) return;
-        var name = InputDialog.Ask(Window.GetWindow(this), "Ring umbenennen", "Neuer Name:", _ringName);
+        var name = InputDialog.Ask(Window.GetWindow(this), L("Rename ring", "Ring umbenennen"), L("New name:", "Neuer Name:"), _ringName);
         if (string.IsNullOrWhiteSpace(name) || name == _ringName || _ctx.Config.Rings.ContainsKey(name)) return;
         _ctx.RenameRing(_ringName, name);
         _ctx.MarkDirty();
@@ -342,8 +359,9 @@ internal sealed class RingsPage : UserControl
     private void DeleteRing()
     {
         if (_ringName is null) return;
-        if (MessageBox.Show(Window.GetWindow(this)!, $"Ring \"{_ringName}\" löschen? Verweise darauf werden ungültig.", "Ring löschen",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(Window.GetWindow(this)!,
+                L($"Delete ring \"{_ringName}\"? References to it become invalid.", $"Ring \"{_ringName}\" löschen? Verweise darauf werden ungültig."),
+                L("Delete ring", "Ring löschen"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         _ctx.Config.Rings.Remove(_ringName);
         _ctx.MarkDirty();
         RefreshRings(DefaultConfig.MainRing);
@@ -353,7 +371,7 @@ internal sealed class RingsPage : UserControl
     {
         var ring = CurrentRing;
         if (ring is null || ring.Segments.Count >= 8) return;
-        ring.Segments.Add(new RingSegment { Label = "Neu", Action = new KeysAction { Keys = "Ctrl+C" } });
+        ring.Segments.Add(new RingSegment { Label = L("New", "Neu"), Action = new KeysAction { Keys = "Ctrl+C" } });
         _segmentIndex = ring.Segments.Count - 1;
         _ctx.MarkDirty();
         RefreshSegments();
@@ -386,7 +404,7 @@ internal sealed class RingsPage : UserControl
         var ring = CurrentRing;
         if (ring is null || _segmentIndex < 0) return;
         ring.Segments[_segmentIndex] = ring.Segments[_segmentIndex] is null
-            ? new RingSegment { Label = "Neu", Action = new KeysAction { Keys = "Ctrl+C" } }
+            ? new RingSegment { Label = L("New", "Neu"), Action = new KeysAction { Keys = "Ctrl+C" } }
             : null;
         _ctx.MarkDirty();
         RefreshSegments();
@@ -394,7 +412,11 @@ internal sealed class RingsPage : UserControl
 
     private static string Direction(int index, int count)
     {
-        string[] names = ["oben", "oben rechts", "rechts", "unten rechts", "unten", "unten links", "links", "oben links"];
+        string[] names =
+        [
+            L("top", "oben"), L("top right", "oben rechts"), L("right", "rechts"), L("bottom right", "unten rechts"),
+            L("bottom", "unten"), L("bottom left", "unten links"), L("left", "links"), L("top left", "oben links"),
+        ];
         var angle = RingGeometry.SegmentCenterAngle(index, count);
         return names[(int)Math.Round(angle / 45.0) % 8];
     }

@@ -35,14 +35,14 @@ internal static class WatchCommand
             names[s.Key] = s.Name;
             var battery = s.Battery is { } b ? $"{b.EffectivePercent?.ToString() ?? "?"} % {Commands.DescribeState(b.State)}" : "–";
             ConsoleOut.Line(s.State == DeviceState.Ready ? ConsoleColor.Green : ConsoleColor.Yellow,
-                $"{Now} ZUSTAND {s.Name}: {s.StateText} · {s.Connection} · Akku {battery} · DPI {s.Dpi?.ToString() ?? "–"} · " +
-                $"umgeleitet [{string.Join(",", s.DivertedControls.Select(ControlIds.Format))}]" +
-                (s.FailedControls.Count > 0 ? $" · fehlgeschlagen [{string.Join(",", s.FailedControls.Select(ControlIds.Format))}]" : ""));
+                $"{Now} STATE {s.Name}: {s.StateText} · {s.Connection} · battery {battery} · DPI {s.Dpi?.ToString() ?? "–"} · " +
+                $"diverted [{string.Join(",", s.DivertedControls.Select(ControlIds.Format))}]" +
+                (s.FailedControls.Count > 0 ? $" · failed [{string.Join(",", s.FailedControls.Select(ControlIds.Format))}]" : ""));
         };
-        service.DeviceRemoved += s => ConsoleOut.Line(ConsoleColor.Red, $"{Now} ENTFERNT {s.Name}");
+        service.DeviceRemoved += s => ConsoleOut.Line(ConsoleColor.Red, $"{Now} REMOVED {s.Name}");
         service.ButtonChanged += e =>
-            ConsoleOut.Line(ConsoleColor.Cyan, $"{Now} TASTE {ControlIds.Format(e.ControlId)} {ControlIds.GetName(e.ControlId)} " +
-                                               $"{(e.IsDown ? "GEDRÜCKT" : "losgelassen")} ({names.GetValueOrDefault(e.DeviceKey, e.DeviceKey)})");
+            ConsoleOut.Line(ConsoleColor.Cyan, $"{Now} BUTTON {ControlIds.Format(e.ControlId)} {ControlIds.GetName(e.ControlId)} " +
+                                               $"{(e.IsDown ? "PRESSED" : "released")} ({names.GetValueOrDefault(e.DeviceKey, e.DeviceKey)})");
         service.RawXY += e =>
         {
             rawDx += e.Dx;
@@ -50,15 +50,15 @@ internal static class WatchCommand
             var now = Environment.TickCount64;
             if (now - lastRawPrint < 150) return;
             lastRawPrint = now;
-            ConsoleOut.Line(ConsoleColor.Magenta, $"{Now} RAW-XY Summe dx={rawDx} dy={rawDy}");
+            ConsoleOut.Line(ConsoleColor.Magenta, $"{Now} RAW-XY sum dx={rawDx} dy={rawDy}");
         };
         if (o.Raw)
             service.FrameTraced += (_, dir, frame, _) => ConsoleOut.Hint($"{Now} {(dir == FrameDirection.Tx ? "TX" : "RX")} {HidppMessage.ToHex(frame)}");
 
         ConsoleOut.Heading(divert.Count == 0
-            ? "watch: DeviceService läuft nur lesend (keine Umleitung) – Strg+C beendet"
-            : $"watch: DeviceService leitet [{string.Join(", ", divert.Select(ControlIds.Format))}] um – Strg+C beendet und setzt zurück");
-        ConsoleOut.Hint("Test: Maus aus/an, Bluetooth aus/an, Standby, Sperren/Entsperren – die Meldungen zeigen Reconnect und Neu-Konfiguration.");
+            ? "watch: DeviceService running read-only (no diversion) – Ctrl+C quits"
+            : $"watch: DeviceService diverts [{string.Join(", ", divert.Select(ControlIds.Format))}] – Ctrl+C quits and resets");
+        ConsoleOut.Hint("Test: mouse off/on, Bluetooth off/on, standby, lock/unlock – the messages show reconnect and reconfiguration.");
         OptionsPlusCheck.WarnIfRunning();
 
         service.Start();

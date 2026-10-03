@@ -36,7 +36,7 @@ public sealed class ProcessLauncher(ILogger? logger = null)
         if (ProcessRights.IsElevated)
         {
             if (ShellExecuteUnelevated(file, args, dir, hidden)) return;
-            logger?.LogWarning("Start ohne Adminrechte über die Explorer-Shell fehlgeschlagen – starte direkt (erbt Adminrechte): {File}", file);
+            logger?.LogWarning("Unelevated launch via the Explorer shell failed – starting directly (inherits admin rights): {File}", file);
         }
         StartShell(file, args, dir, null, hidden);
     }
@@ -115,7 +115,7 @@ public sealed class ProcessLauncher(ILogger? logger = null)
         }
         catch (Exception ex)
         {
-            logger?.LogDebug(ex, "ShellExecute über Explorer fehlgeschlagen");
+            logger?.LogDebug(ex, "ShellExecute via Explorer failed");
             return false;
         }
         finally

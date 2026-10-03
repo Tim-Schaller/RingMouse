@@ -32,12 +32,12 @@ internal sealed class RingMouseApplication : Application
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
             RingMouse.Platform.Display.CursorHider.Show(); // nie mit ausgeblendetem Mauszeiger abstürzen
-            Log.Fatal(args.ExceptionObject as Exception, "Unbehandelte Ausnahme (terminating={Terminating})", args.IsTerminating);
+            Log.Fatal(args.ExceptionObject as Exception, "Unhandled exception (terminating={Terminating})", args.IsTerminating);
         };
         AppDomain.CurrentDomain.ProcessExit += (_, _) => RingMouse.Platform.Display.CursorHider.Show();
         TaskScheduler.UnobservedTaskException += (_, args) =>
         {
-            Log.Error(args.Exception, "Unbeobachtete Task-Ausnahme");
+            Log.Error(args.Exception, "Unobserved task exception");
             args.SetObserved();
         };
 
@@ -56,12 +56,15 @@ internal sealed class RingMouseApplication : Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        Log.Error(e.Exception, "Unbehandelte Ausnahme im UI-Thread");
+        Log.Error(e.Exception, "Unhandled exception on the UI thread");
         e.Handled = true; // weiterlaufen – ein Fehler im Ring darf die Tastenumleitung nicht beenden
     }
 
     /// <summary>Beendet, weil Windows die Sitzung beendet (Abmelden/Herunterfahren) – siehe Program.Main.</summary>
     public bool EndedBySessionEnding { get; private set; }
+
+    /// <summary>Beendet, weil ein Neustart gewünscht ist (z.B. Sprachwechsel) – siehe Program.Main.</summary>
+    public bool RestartRequested => _host?.RestartRequested == true;
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {

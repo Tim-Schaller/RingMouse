@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using RingMouse.Core.Config;
 using RingMouse.Device;
 using RingMouse.HidPlusPlus.Features;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -26,13 +27,13 @@ internal sealed class ButtonsPage : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var left = new StackPanel { Margin = new Thickness(0, 0, 16, 0) };
-        left.Children.Add(Form.Heading("Tasten"));
-        _captureButton = Form.Button("Taste drücken …", () => _ = CaptureAsync(), accent: true);
+        left.Children.Add(Form.Heading(L("Buttons", "Tasten")));
+        _captureButton = Form.Button(L("Press button …", "Taste drücken …"), () => _ = CaptureAsync(), accent: true);
         left.Children.Add(Form.Buttons(_captureButton));
         left.Children.Add(_captureStatus);
         left.Children.Add(_list);
         var manual = new TextBox { Width = 110, Margin = new Thickness(0, 0, 6, 0) };
-        var add = Form.Button("CID hinzufügen", () =>
+        var add = Form.Button(L("Add CID", "CID hinzufügen"), () =>
         {
             if (!ControlIds.TryParse(manual.Text, out var cid)) return;
             _ctx.Config.Buttons[ControlIds.Format(cid)] = new KeysAction { Keys = "Ctrl+C" };
@@ -43,16 +44,21 @@ internal sealed class ButtonsPage : UserControl
         manualRow.Children.Add(manual);
         manualRow.Children.Add(add);
         left.Children.Add(manualRow);
-        left.Children.Add(Form.Hint("„Taste drücken …“ wählt die Taste aus, die du an der Maus drückst. Die Liste meldet die Maus " +
-                                    "selbst (ringmouse-probe controls); für nicht verbundene Geräte die CID manuell eintragen."));
+        left.Children.Add(Form.Hint(L("“Press button …” selects the button you press on the mouse. The mouse reports the list " +
+                                      "itself (ringmouse-probe controls); for devices that aren't connected, enter the CID manually.",
+                                      "„Taste drücken …“ wählt die Taste aus, die du an der Maus drückst. Die Liste meldet die Maus " +
+                                      "selbst (ringmouse-probe controls); für nicht verbundene Geräte die CID manuell eintragen.")));
         grid.Children.Add(left);
 
         var right = new StackPanel();
-        right.Children.Add(Form.Heading("Belegung (Standard-Profil)"));
+        right.Children.Add(Form.Heading(L("Assignment (default profile)", "Belegung (Standard-Profil)")));
         right.Children.Add(_editor);
-        right.Children.Add(Form.Hint("Hinweis: Eine umgeleitete Taste verliert ihre eingebaute Funktion (z.B. die DPI-Umschaltung). " +
-                                     "Dafür gibt es die Aktion \"DPI setzen / umschalten\" (z.B. als Ring-Segment). " +
-                                     "App-spezifische Abweichungen legst du unter \"Profile\" an – alles andere erben Profile von hier."));
+        right.Children.Add(Form.Hint(L("Note: a diverted button loses its built-in function (e.g. DPI switching). " +
+                                       "For that there is the action \"Set / cycle DPI\" (e.g. as a ring segment). " +
+                                       "App-specific differences go under \"Profiles\" – profiles inherit everything else from here.",
+                                       "Hinweis: Eine umgeleitete Taste verliert ihre eingebaute Funktion (z.B. die DPI-Umschaltung). " +
+                                       "Dafür gibt es die Aktion \"DPI setzen / umschalten\" (z.B. als Ring-Segment). " +
+                                       "App-spezifische Abweichungen legst du unter \"Profile\" an – alles andere erben Profile von hier.")));
         Grid.SetColumn(right, 1);
         grid.Children.Add(right);
         Content = Form.Scroll(grid);
@@ -89,7 +95,8 @@ internal sealed class ButtonsPage : UserControl
         _ctx.Config.Buttons.FirstOrDefault(kv => ControlIds.TryParse(kv.Key, out var id) && id == cid).Value;
 
     private static string ItemText(SettingsContext.KnownControl c, ActionDefinition? binding) =>
-        $"{ControlIds.Format(c.Cid)}  {c.Name}{(c.Divertable ? "" : " (nicht umleitbar)")}{(c.Virtual ? " (virtuell)" : "")} → {binding?.Describe() ?? "Originalfunktion"}";
+        $"{ControlIds.Format(c.Cid)}  {c.Name}{(c.Divertable ? "" : L(" (not divertable)", " (nicht umleitbar)"))}{(c.Virtual ? L(" (virtual)", " (virtuell)") : "")} → " +
+        $"{binding?.Describe() ?? L("Native function", "Originalfunktion")}";
 
     /// <summary>Nächste gedrückte Maustaste erkennen und auswählen; ein zweiter Klick bricht ab.</summary>
     private async Task CaptureAsync()
@@ -101,29 +108,33 @@ internal sealed class ButtonsPage : UserControl
         }
         if (!_ctx.Host.Devices.Any(d => d.State == DeviceState.Ready))
         {
-            _captureStatus.Text = "Keine Maus verbunden – einmal bewegen, dann nochmal.";
+            _captureStatus.Text = L("No mouse connected – move it once, then try again.", "Keine Maus verbunden – einmal bewegen, dann nochmal.");
             return;
         }
 
         var cts = _capture = new CancellationTokenSource();
-        _captureButton.Content = "Abbrechen";
-        _captureStatus.Text = "Einen Moment …";
+        _captureButton.Content = L("Cancel", "Abbrechen");
+        _captureStatus.Text = L("One moment …", "Einen Moment …");
         try
         {
             var pressed = await _ctx.Host.CaptureButtonAsync(
                 () => Dispatcher.BeginInvoke(() =>
                 {
-                    if (!cts.IsCancellationRequested) _captureStatus.Text = "Jetzt die gewünschte Taste an der Maus drücken …";
+                    if (!cts.IsCancellationRequested)
+                        _captureStatus.Text = L("Now press the desired button on the mouse …", "Jetzt die gewünschte Taste an der Maus drücken …");
                 }),
                 cts.Token);
             if (pressed is { } e)
             {
                 Refresh(e.ControlId);
-                _captureStatus.Text = $"Erkannt: {ControlIds.Format(e.ControlId)} – {ControlIds.GetName(e.ControlId)}. Rechts die Aktion wählen.";
+                _captureStatus.Text = L($"Detected: {ControlIds.Format(e.ControlId)} – {ControlIds.GetName(e.ControlId)}. Choose the action on the right.",
+                    $"Erkannt: {ControlIds.Format(e.ControlId)} – {ControlIds.GetName(e.ControlId)}. Rechts die Aktion wählen.");
             }
             else
             {
-                _captureStatus.Text = cts.IsCancellationRequested ? "Abgebrochen." : "Keine Taste erkannt (Zeit abgelaufen).";
+                _captureStatus.Text = cts.IsCancellationRequested
+                    ? L("Canceled.", "Abgebrochen.")
+                    : L("No button detected (timed out).", "Keine Taste erkannt (Zeit abgelaufen).");
             }
         }
         catch (InvalidOperationException ex)
@@ -134,7 +145,7 @@ internal sealed class ButtonsPage : UserControl
         {
             cts.Dispose();
             _capture = null;
-            _captureButton.Content = "Taste drücken …";
+            _captureButton.Content = L("Press button …", "Taste drücken …");
         }
     }
 
@@ -143,15 +154,18 @@ internal sealed class ButtonsPage : UserControl
         _editor.Children.Clear();
         if (_selected is not { } cid)
         {
-            _editor.Children.Add(Form.Hint("Keine Taste ausgewählt. Mit „Taste drücken …“ eine Taste der Maus wählen."));
+            _editor.Children.Add(Form.Hint(L("No button selected. Use “Press button …” to choose a button on the mouse.",
+                "Keine Taste ausgewählt. Mit „Taste drücken …“ eine Taste der Maus wählen.")));
             return;
         }
         var control = _controls.First(c => c.Cid == cid);
-        _editor.Children.Add(Form.Row("Taste", new TextBlock { Text = $"{ControlIds.Format(cid)} – {control.Name}", FontWeight = FontWeights.SemiBold }));
-        _editor.Children.Add(Form.Row("Gerät(e)", new TextBlock { Text = control.Devices }));
-        _editor.Children.Add(Form.Row("Umleitbar", new TextBlock
+        _editor.Children.Add(Form.Row(L("Button", "Taste"), new TextBlock { Text = $"{ControlIds.Format(cid)} – {control.Name}", FontWeight = FontWeights.SemiBold }));
+        _editor.Children.Add(Form.Row(L("Device(s)", "Gerät(e)"), new TextBlock { Text = control.Devices }));
+        _editor.Children.Add(Form.Row(L("Divertable", "Umleitbar"), new TextBlock
         {
-            Text = control.Divertable ? (control.RawXY ? "ja (mit Raw-XY)" : "ja") : "nein – bei Standardtasten greift der Maus-Hook-Fallback",
+            Text = control.Divertable
+                ? (control.RawXY ? L("yes (with Raw-XY)", "ja (mit Raw-XY)") : L("yes", "ja"))
+                : L("no – standard buttons use the mouse hook fallback", "nein – bei Standardtasten greift der Maus-Hook-Fallback"),
         }));
 
         var key = _ctx.Config.Buttons.Keys.FirstOrDefault(k => ControlIds.TryParse(k, out var id) && id == cid) ?? ControlIds.Format(cid);

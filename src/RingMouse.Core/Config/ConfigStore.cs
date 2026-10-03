@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Core.Config;
 
@@ -44,7 +45,7 @@ public sealed class ConfigStore : IDisposable
     {
         if (!File.Exists(FilePath))
         {
-            _logger?.LogInformation("Keine Config gefunden – lege Standard-Config an: {Path}", FilePath);
+            _logger?.LogInformation("No config found – creating the default config: {Path}", FilePath);
             Save(DefaultConfig.Create());
         }
         var result = LoadFromDisk();
@@ -65,12 +66,16 @@ public sealed class ConfigStore : IDisposable
         }
         catch (JsonException ex)
         {
-            var where = ex.LineNumber is { } line ? $" (Zeile {line + 1}, Spalte {(ex.BytePositionInLine ?? 0) + 1})" : "";
-            return new ConfigLoadResult(null, [], $"JSON-Fehler{where}: {FirstLine(ex.Message)}");
+            var where = ex.LineNumber is { } line
+                ? L($" (line {line + 1}, column {(ex.BytePositionInLine ?? 0) + 1})", $" (Zeile {line + 1}, Spalte {(ex.BytePositionInLine ?? 0) + 1})")
+                : "";
+            var detail = FirstLine(ex.Message);
+            return new ConfigLoadResult(null, [], L($"JSON error{where}: {detail}", $"JSON-Fehler{where}: {detail}"));
         }
         catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or ArgumentException)
         {
-            return new ConfigLoadResult(null, [], $"Config ungültig: {FirstLine(ex.Message)}");
+            var detail = FirstLine(ex.Message);
+            return new ConfigLoadResult(null, [], L($"Invalid config: {detail}", $"Config ungültig: {detail}"));
         }
     }
 
@@ -83,7 +88,7 @@ public sealed class ConfigStore : IDisposable
         }
         catch (Exception ex)
         {
-            return new ConfigLoadResult(null, [], $"Config konnte nicht gelesen werden: {ex.Message}");
+            return new ConfigLoadResult(null, [], L($"Could not read the config: {ex.Message}", $"Config konnte nicht gelesen werden: {ex.Message}"));
         }
         return Parse(json);
     }
@@ -118,7 +123,7 @@ public sealed class ConfigStore : IDisposable
             var backup = Path.Combine(Path.GetDirectoryName(FilePath)!,
                 $"{Path.GetFileNameWithoutExtension(FilePath)}.backup-{DateTime.Now:yyyyMMdd-HHmmss}.json");
             File.Copy(FilePath, backup, overwrite: true);
-            _logger?.LogInformation("Config gesichert: {Path}", backup);
+            _logger?.LogInformation("Config backed up: {Path}", backup);
             return backup;
         }
     }
@@ -134,7 +139,7 @@ public sealed class ConfigStore : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "JSON-Schema konnte nicht geschrieben werden");
+            _logger?.LogWarning(ex, "Could not write the JSON schema");
         }
     }
 
@@ -165,7 +170,7 @@ public sealed class ConfigStore : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Config-Änderung konnte nicht gelesen werden");
+            _logger?.LogWarning(ex, "Could not read the config change");
             return;
         }
 
@@ -177,7 +182,7 @@ public sealed class ConfigStore : IDisposable
         var result = Parse(json);
         if (!result.Success)
         {
-            _logger?.LogWarning("Config-Änderung verworfen: {Error} {Issues}", result.ErrorMessage,
+            _logger?.LogWarning("Config change rejected: {Error} {Issues}", result.ErrorMessage,
                 string.Join("; ", result.Issues.Where(i => i.Severity == IssueSeverity.Error)));
             LoadFailed?.Invoke(result);
             return;
@@ -189,7 +194,7 @@ public sealed class ConfigStore : IDisposable
             CurrentIssues = result.Issues;
             _lastWrittenHash = Hash(json);
         }
-        _logger?.LogInformation("Config neu geladen ({Warnings} Hinweise)", result.Issues.Count);
+        _logger?.LogInformation("Config reloaded ({Warnings} warnings)", result.Issues.Count);
         Changed?.Invoke(Current);
     }
 

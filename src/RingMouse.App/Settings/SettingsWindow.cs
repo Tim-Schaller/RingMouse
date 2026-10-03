@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using RingMouse.Core.Config;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -28,7 +29,7 @@ internal sealed class SettingsWindow : Window
     public SettingsWindow(ISettingsHost host)
     {
         _host = host;
-        Title = "RingMouse – Einstellungen";
+        Title = L("RingMouse – Settings", "RingMouse – Einstellungen");
         Width = 1080;
         Height = 760;
         MinWidth = 860;
@@ -43,10 +44,10 @@ internal sealed class SettingsWindow : Window
             // Icon optional
         }
 
-        var save = new Button { Content = "Speichern", MinWidth = 110, Padding = new Thickness(12, 5, 12, 5), IsDefault = false };
+        var save = new Button { Content = L("Save", "Speichern"), MinWidth = 110, Padding = new Thickness(12, 5, 12, 5), IsDefault = false };
         save.SetResourceReference(StyleProperty, "AccentButtonStyle");
         save.Click += (_, _) => Save();
-        var close = new Button { Content = "Schließen", MinWidth = 110, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(8, 0, 0, 0) };
+        var close = new Button { Content = L("Close", "Schließen"), MinWidth = 110, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(8, 0, 0, 0) };
         close.Click += (_, _) => Close();
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -87,18 +88,18 @@ internal sealed class SettingsWindow : Window
         _ctx.Dirty += () =>
         {
             _dirty = true;
-            _status.Text = "Ungespeicherte Änderungen";
+            _status.Text = L("Unsaved changes", "Ungespeicherte Änderungen");
             _status.Foreground = (Brush)FindResource(SystemColors.ControlTextBrushKey);
         };
         _savedAutostart = working.General.Autostart;
         _buttonsPage = new ButtonsPage(_ctx);
         _devicePage = new DevicePage(_ctx);
         _tabs.Items.Clear();
-        _tabs.Items.Add(new TabItem { Header = "Ringe", Content = new RingsPage(_ctx) });
-        _tabs.Items.Add(new TabItem { Header = "Tasten", Content = _buttonsPage });
-        _tabs.Items.Add(new TabItem { Header = "Profile", Content = new ProfilesPage(_ctx) });
-        _tabs.Items.Add(new TabItem { Header = "Gerät & Akku", Content = _devicePage });
-        _tabs.Items.Add(new TabItem { Header = "Allgemein", Content = new GeneralPage(_ctx, ResetToDefaults) });
+        _tabs.Items.Add(new TabItem { Header = L("Rings", "Ringe"), Content = new RingsPage(_ctx) });
+        _tabs.Items.Add(new TabItem { Header = L("Buttons", "Tasten"), Content = _buttonsPage });
+        _tabs.Items.Add(new TabItem { Header = L("Profiles", "Profile"), Content = new ProfilesPage(_ctx) });
+        _tabs.Items.Add(new TabItem { Header = L("Device & battery", "Gerät & Akku"), Content = _devicePage });
+        _tabs.Items.Add(new TabItem { Header = L("General", "Allgemein"), Content = new GeneralPage(_ctx, ResetToDefaults, SaveAndRestart) });
         _tabs.SelectedIndex = selected < 0 ? 0 : selected;
         _dirty = false;
         _status.Text = "";
@@ -109,12 +110,13 @@ internal sealed class SettingsWindow : Window
     {
         if (_dirty)
         {
-            _status.Text = "Hinweis: config.json wurde außerhalb geändert – Speichern überschreibt diese Änderungen.";
+            _status.Text = L("Note: config.json was changed outside the app – saving overwrites those changes.",
+                "Hinweis: config.json wurde außerhalb geändert – Speichern überschreibt diese Änderungen.");
             return;
         }
         if (ConfigSerializer.Serialize(config) == ConfigSerializer.Serialize(_ctx.Config)) return; // eigenes Speichern
         Load(ConfigSerializer.Clone(config));
-        _status.Text = $"Neu geladen ({DateTime.Now:HH:mm:ss}) – config.json wurde geändert.";
+        _status.Text = L($"Reloaded ({DateTime.Now:HH:mm:ss}) – config.json was changed.", $"Neu geladen ({DateTime.Now:HH:mm:ss}) – config.json wurde geändert.");
     }
 
     /// <summary>Aufruf vom Host, wenn sich Geräte geändert haben.</summary>
@@ -130,13 +132,15 @@ internal sealed class SettingsWindow : Window
         var errors = issues.Where(i => i.Severity == IssueSeverity.Error).ToList();
         if (errors.Count > 0)
         {
-            _status.Text = "Nicht gespeichert – bitte korrigieren:\n" + string.Join("\n", errors.Take(4).Select(e => $"• {e.Path}: {e.Message}"));
+            _status.Text = L("Not saved – please correct:\n", "Nicht gespeichert – bitte korrigieren:\n") +
+                           string.Join("\n", errors.Take(4).Select(e => $"• {e.Path}: {e.Message}"));
             _status.Foreground = Brushes.IndianRed;
             return false;
         }
 
         _host.SaveConfig(ConfigSerializer.Clone(_ctx.Config));
-        var message = $"Gespeichert {DateTime.Now:HH:mm:ss}" + (issues.Count > 0 ? $" ({issues.Count} Hinweis(e): {issues[0].Message})" : "");
+        var message = L($"Saved {DateTime.Now:HH:mm:ss}", $"Gespeichert {DateTime.Now:HH:mm:ss}") +
+                      (issues.Count > 0 ? L($" ({issues.Count} note(s): {issues[0].Message})", $" ({issues.Count} Hinweis(e): {issues[0].Message})") : "");
 
         if (_ctx.Config.General.Autostart != _savedAutostart && Environment.ProcessPath is { } exe)
         {
@@ -151,10 +155,20 @@ internal sealed class SettingsWindow : Window
         return true;
     }
 
+    /// <summary>Speichern und RingMouse neu starten, z.B. damit eine neue Sprache überall gilt.</summary>
+    private void SaveAndRestart()
+    {
+        if (_dirty && !Save()) return;
+        SuppressClosePrompt = true;
+        _host.Restart();
+    }
+
     private void ResetToDefaults()
     {
-        if (MessageBox.Show(this, "Alle Einstellungen auf den Standard zurücksetzen?\n\nDie bisherige config.json wird vorher als Sicherung abgelegt.",
-                "Standard wiederherstellen", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(this,
+                L("Reset all settings to the defaults?\n\nThe current config.json is saved as a backup first.",
+                    "Alle Einstellungen auf den Standard zurücksetzen?\n\nDie bisherige config.json wird vorher als Sicherung abgelegt."),
+                L("Restore defaults", "Standard wiederherstellen"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
         string? backup;
         try
@@ -163,21 +177,23 @@ internal sealed class SettingsWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            MessageBox.Show(this, $"Sicherung fehlgeschlagen, es wurde nichts zurückgesetzt:\n{ex.Message}", "Standard wiederherstellen",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this,
+                L($"Backup failed, nothing was reset:\n{ex.Message}", $"Sicherung fehlgeschlagen, es wurde nichts zurückgesetzt:\n{ex.Message}"),
+                L("Restore defaults", "Standard wiederherstellen"), MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
         Load(DefaultConfig.Create());
         _dirty = true;
-        _status.Text = "Standard geladen – zum Übernehmen speichern" + (backup is null ? "" : $" · Sicherung: {Path.GetFileName(backup)}");
+        _status.Text = L("Defaults loaded – save to apply", "Standard geladen – zum Übernehmen speichern") +
+                       (backup is null ? "" : L($" · Backup: {Path.GetFileName(backup)}", $" · Sicherung: {Path.GetFileName(backup)}"));
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
         if (_dirty && !SuppressClosePrompt)
         {
-            var answer = MessageBox.Show(this, "Änderungen speichern?", "RingMouse", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            var answer = MessageBox.Show(this, L("Save changes?", "Änderungen speichern?"), "RingMouse", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Cancel || (answer == MessageBoxResult.Yes && !Save()))
             {
                 e.Cancel = true;

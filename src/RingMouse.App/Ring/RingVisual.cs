@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using RingMouse.Core.Config;
 using RingMouse.Core.Ring;
+using static RingMouse.Core.Localization.Lang;
 using WpfPath = System.Windows.Shapes.Path;
 
 namespace RingMouse.App.Ring;
@@ -406,7 +407,7 @@ internal sealed class RingVisual
         Panel.SetZIndex(centerIcon, 4);
         layer.Children.Add(centerIcon);
 
-        var defaultText = ring.Title ?? (isSubmenu ? "Zurück" : "");
+        var defaultText = ring.Title ?? (isSubmenu ? L("Back", "Zurück") : "");
         var centerText = new TextBlock
         {
             Text = defaultText,

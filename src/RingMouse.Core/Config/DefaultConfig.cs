@@ -1,3 +1,5 @@
+using static RingMouse.Core.Localization.Lang;
+
 namespace RingMouse.Core.Config;
 
 /// <summary>
@@ -17,39 +19,39 @@ public static class DefaultConfig
         {
             Segments =
             [
-                Seg("Wiedergabe/Pause", "PlayPause", new MediaAction { Key = MediaKey.PlayPause }),
-                Seg("Emoji", "Emoji", new SystemAction { Command = SystemCommand.EmojiPanel }),
-                Seg("Medien", "Music", new SubmenuAction { Ring = "media" }),
-                Seg("Sperren", "Lock", new SystemAction { Command = SystemCommand.Lock }),
-                Seg("Text", "Edit", new SubmenuAction { Ring = "text" }),
-                Seg("Bildschirmfoto", "Screenshot", new ScreenshotAction()),
-                Seg("Desktop", "Desktop", new SystemAction { Command = SystemCommand.ShowDesktop }),
-                Seg("Explorer", "Folder", new LaunchAction { Target = "explorer.exe" }),
+                Seg(L("Play/Pause", "Wiedergabe/Pause"), "PlayPause", new MediaAction { Key = MediaKey.PlayPause }),
+                Seg(L("Emoji", "Emoji"), "Emoji", new SystemAction { Command = SystemCommand.EmojiPanel }),
+                Seg(L("Media", "Medien"), "Music", new SubmenuAction { Ring = "media" }),
+                Seg(L("Lock", "Sperren"), "Lock", new SystemAction { Command = SystemCommand.Lock }),
+                Seg(L("Text", "Text"), "Edit", new SubmenuAction { Ring = "text" }),
+                Seg(L("Screenshot", "Bildschirmfoto"), "Screenshot", new ScreenshotAction()),
+                Seg(L("Desktop", "Desktop"), "Desktop", new SystemAction { Command = SystemCommand.ShowDesktop }),
+                Seg(L("Explorer", "Explorer"), "Folder", new LaunchAction { Target = "explorer.exe" }),
             ],
         };
 
         // Vier Plätze: oben/rechts/unten/links – Lautstärke vertikal, Titelwechsel horizontal
         c.Rings["media"] = new RingDefinition
         {
-            Title = "Medien",
+            Title = L("Media", "Medien"),
             Segments =
             [
-                Seg("Lauter", "VolumeUp", new MediaAction { Key = MediaKey.VolumeUp }),
-                Seg("Nächster Titel", "Next", new MediaAction { Key = MediaKey.Next }),
-                Seg("Leiser", "VolumeDown", new MediaAction { Key = MediaKey.VolumeDown }),
-                Seg("Vorheriger Titel", "Previous", new MediaAction { Key = MediaKey.Previous }),
+                Seg(L("Volume up", "Lauter"), "VolumeUp", new MediaAction { Key = MediaKey.VolumeUp }),
+                Seg(L("Next track", "Nächster Titel"), "Next", new MediaAction { Key = MediaKey.Next }),
+                Seg(L("Volume down", "Leiser"), "VolumeDown", new MediaAction { Key = MediaKey.VolumeDown }),
+                Seg(L("Previous track", "Vorheriger Titel"), "Previous", new MediaAction { Key = MediaKey.Previous }),
             ],
         };
 
         c.Rings["text"] = new RingDefinition
         {
-            Title = "Text",
+            Title = L("Text", "Text"),
             Segments =
             [
-                Seg("Datum", "Calendar", new SnippetAction { Text = "{date}" }),
-                Seg("Uhrzeit", "Clock", new SnippetAction { Text = "{time}" }),
-                Seg("Zwischenablage", "Clipboard", new SystemAction { Command = SystemCommand.ClipboardHistory }),
-                Seg("Zeitstempel", "Recent", new SnippetAction { Text = "{now:yyyy-MM-dd HH:mm}" }),
+                Seg(L("Date", "Datum"), "Calendar", new SnippetAction { Text = "{date}" }),
+                Seg(L("Time", "Uhrzeit"), "Clock", new SnippetAction { Text = "{time}" }),
+                Seg(L("Clipboard", "Zwischenablage"), "Clipboard", new SystemAction { Command = SystemCommand.ClipboardHistory }),
+                Seg(L("Timestamp", "Zeitstempel"), "Recent", new SnippetAction { Text = "{now:yyyy-MM-dd HH:mm}" }),
             ],
         };
 

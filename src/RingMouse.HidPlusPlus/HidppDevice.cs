@@ -50,7 +50,7 @@ public sealed class HidppDevice : IDisposable
 
     public HidppDevice(HidppChannel channel, byte deviceIndex, byte softwareId = DefaultSoftwareId)
     {
-        if (softwareId is 0 or > 0x0F) throw new ArgumentOutOfRangeException(nameof(softwareId), "Software-ID muss 1–15 sein.");
+        if (softwareId is 0 or > 0x0F) throw new ArgumentOutOfRangeException(nameof(softwareId), "Software ID must be 1–15.");
         Channel = channel;
         DeviceIndex = deviceIndex;
         SoftwareId = softwareId;
@@ -122,7 +122,7 @@ public sealed class HidppDevice : IDisposable
     public async Task<IReadOnlyList<FeatureInfo>> EnumerateFeaturesAsync(CancellationToken cancellationToken = default)
     {
         var featureSet = await GetFeatureAsync(FeatureIds.FeatureSet, cancellationToken).ConfigureAwait(false)
-                         ?? throw new HidppException("Das Gerät hat kein FeatureSet (0x0001).");
+                         ?? throw new HidppException("The device has no FeatureSet (0x0001).");
         var count = (await CallAsync(featureSet.Index, 0x00, null, cancellationToken).ConfigureAwait(false))[0];
 
         var list = new List<FeatureInfo>(count + 1);
@@ -179,7 +179,7 @@ public sealed class HidppDevice : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0) throw new HidppTransportException("Gerät wurde geschlossen.");
+        if (Volatile.Read(ref _disposed) != 0) throw new HidppTransportException("Device was closed.");
     }
 
     /// <remarks>

@@ -1,0 +1,36 @@
+name: Release
+
+# Ein Tag "vX.Y.Z" baut, testet und veröffentlicht ein Release mit den fertigen Dateien.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build, test and publish
+        shell: pwsh
+        run: ./build.ps1 -Target All -Version $env:GITHUB_REF_NAME.TrimStart('v')
+
+      - name: Package
+        shell: pwsh
+        run: ./tools/package-release.ps1 -OutputDirectory dist
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "docs/release-notes/$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path $notes)) { throw "Release notes missing: $notes" }
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist -File).FullName --title "RingMouse $env:GITHUB_REF_NAME" --notes-file $notes --verify-tag

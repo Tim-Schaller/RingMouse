@@ -42,7 +42,7 @@ public sealed unsafe class WinHidTransport : IHidTransport
         {
             var err = Marshal.GetLastPInvokeError();
             handle.Dispose();
-            throw new HidIoException(err, $"Öffnen von {device.CollectionTag} ({device.VendorId:X4}:{device.ProductId:X4})");
+            throw new HidIoException(err, $"Opening {device.CollectionTag} ({device.VendorId:X4}:{device.ProductId:X4})");
         }
         return new WinHidPort(device, handle);
     }

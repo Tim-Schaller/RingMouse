@@ -16,10 +16,10 @@ internal static class Commands
         var all = transport.Enumerate(HidppDiscovery.LogitechVendorId);
         var endpoints = ProbeSession.SortEndpoints(HidppDiscovery.FindEndpoints(all));
 
-        ConsoleOut.Heading($"Logitech-HID-Collections (VID 046D): {all.Count}, davon {endpoints.Count} Gerät(e) mit HID++");
+        ConsoleOut.Heading($"Logitech HID collections (VID 046D): {all.Count}, of which {endpoints.Count} device(s) with HID++");
         if (all.Count == 0)
         {
-            ConsoleOut.Warn("Keine Logitech-HID-Geräte gefunden.");
+            ConsoleOut.Warn("No Logitech HID devices found.");
             return 1;
         }
 
@@ -28,7 +28,7 @@ internal static class Commands
         {
             Console.WriteLine();
             ConsoleOut.Line(ConsoleColor.White, $"[{number}] {ep.DisplayName}  ·  {ep.BusText}  ·  VID {ep.VendorId:X4} PID {ep.ProductId:X4}");
-            ConsoleOut.Hint($"    Knoten: {ep.Key}");
+            ConsoleOut.Hint($"    Node: {ep.Key}");
             foreach (var c in ep.AllCollections) PrintCollection(c);
 
             if (!o.NoPing) await PrintIdentityAsync(transport, ep, o, ct).ConfigureAwait(false);
@@ -38,7 +38,7 @@ internal static class Commands
         var others = all.Where(c => !endpoints.Any(e => e.AllCollections.Contains(c))).ToList();
         if (others.Count > 0)
         {
-            ConsoleOut.Heading("Weitere Logitech-Collections ohne HID++");
+            ConsoleOut.Heading("Other Logitech collections without HID++");
             foreach (var c in others)
             {
                 ConsoleOut.Info($"  {c.Product ?? "?"}  ({c.Bus}, PID {c.ProductId:X4})");
@@ -47,7 +47,7 @@ internal static class Commands
         }
 
         Console.WriteLine();
-        ConsoleOut.Hint("Gerät wählen mit --device <Nummer|PID>, z.B.: ringmouse-probe controls --device 1");
+        ConsoleOut.Hint("Select a device with --device <number|PID>, e.g.: ringmouse-probe controls --device 1");
         return 0;
     }
 
@@ -55,8 +55,8 @@ internal static class Commands
     {
         var ids = $"IDs in [{Hex(c.InputReportIds)}] out [{Hex(c.OutputReportIds)}]" +
                   (c.FeatureReportIds.Count > 0 ? $" feat [{Hex(c.FeatureReportIds)}]" : "");
-        var role = HidppDiscovery.IsHidppLongCollection(c) ? "→ HID++ Long (0x11, 20 Byte)"
-            : HidppDiscovery.IsHidppShortCollection(c) ? "→ HID++ Short (0x10, 7 Byte)"
+        var role = HidppDiscovery.IsHidppLongCollection(c) ? "→ HID++ Long (0x11, 20 bytes)"
+            : HidppDiscovery.IsHidppShortCollection(c) ? "→ HID++ Short (0x10, 7 bytes)"
             : DescribeUsage(c);
         var color = HidppDiscovery.IsHidppCollection(c) ? ConsoleColor.Green : ConsoleColor.Gray;
         ConsoleOut.Line(color,
@@ -66,11 +66,11 @@ internal static class Commands
 
     private static string DescribeUsage(HidDeviceInfo c) => (c.UsagePage, c.Usage) switch
     {
-        (0x0001, 0x0002) => "Maus (vom System exklusiv geöffnet)",
-        (0x0001, 0x0006) => "Tastatur (vom System exklusiv geöffnet)",
+        (0x0001, 0x0002) => "Mouse (opened exclusively by the system)",
+        (0x0001, 0x0006) => "Keyboard (opened exclusively by the system)",
         (0x0001, 0x0080) => "System Control",
-        (0x000C, 0x0001) => "Consumer Control (Medientasten)",
-        (>= 0xFF00, _) => "Vendor-spezifisch",
+        (0x000C, 0x0001) => "Consumer Control (media keys)",
+        (>= 0xFF00, _) => "Vendor-specific",
         _ => "",
     };
 
@@ -83,7 +83,7 @@ internal static class Commands
         }
         catch (Exception ex)
         {
-            ConsoleOut.Warn($"    Öffnen fehlgeschlagen: {ex.Message}");
+            ConsoleOut.Warn($"    Opening failed: {ex.Message}");
             return;
         }
 
@@ -95,7 +95,7 @@ internal static class Commands
             var id = await HidppDiscovery.IdentifyAsync(channel, ep.Bus, o.SoftwareId, ct).ConfigureAwait(false);
             if (!id.Responds)
             {
-                ConsoleOut.Warn("    antwortet nicht auf HID++ (schläft? Maus bewegen und erneut versuchen)");
+                ConsoleOut.Warn("    does not respond to HID++ (asleep? move the mouse and try again)");
                 return;
             }
 
@@ -104,16 +104,16 @@ internal static class Commands
                 using var dev = new HidppDevice(channel, HidppMessage.DirectDeviceIndex, o.SoftwareId);
                 var name = await TryAsync(() => DeviceIdentity.GetNameAsync(dev, ct)).ConfigureAwait(false);
                 var kind = await TryStructAsync(() => DeviceIdentity.GetKindAsync(dev, ct)).ConfigureAwait(false);
-                ConsoleOut.Good($"    HID++ {id.DirectProtocol}, direkt verbunden (Device-Index 0xFF)" +
-                                (name is null ? "" : $" · Name \"{name}\"") + (kind is null or DeviceKind.Unknown ? "" : $" · {kind}"));
+                ConsoleOut.Good($"    HID++ {id.DirectProtocol}, directly connected (device index 0xFF)" +
+                                (name is null ? "" : $" · name \"{name}\"") + (kind is null or DeviceKind.Unknown ? "" : $" · {kind}"));
                 return;
             }
 
-            ConsoleOut.Good("    Receiver (HID++ 1.0), gekoppelte Geräte:");
-            if (id.Slots.Count == 0) ConsoleOut.Info("      (keine antwortenden Geräte)");
+            ConsoleOut.Good("    Receiver (HID++ 1.0), paired devices:");
+            if (id.Slots.Count == 0) ConsoleOut.Info("      (no responding devices)");
             foreach (var slot in id.Slots)
                 ConsoleOut.Info($"      Index {slot.DeviceIndex}: {slot.Name ?? "?"} · " +
-                                (slot.Protocol is { } p ? $"HID++ {p}" : "antwortet nicht (schläft?)"));
+                                (slot.Protocol is { } p ? $"HID++ {p}" : "not responding (asleep?)"));
         }
     }
 
@@ -122,34 +122,34 @@ internal static class Commands
     public static async Task<int> InfoAsync(ProbeSession s, CancellationToken ct)
     {
         var d = s.Device;
-        ConsoleOut.Heading("Geräteinformationen");
-        ConsoleOut.KeyValue("Gerät", s.Endpoint.DisplayName);
-        ConsoleOut.KeyValue("Anbindung", s.Identity.IsReceiver ? $"{s.Endpoint.BusText}-Receiver (PID {s.Endpoint.ProductId:X4})" : s.Endpoint.BusText);
+        ConsoleOut.Heading("Device information");
+        ConsoleOut.KeyValue("Device", s.Endpoint.DisplayName);
+        ConsoleOut.KeyValue("Connection", s.Identity.IsReceiver ? $"{s.Endpoint.BusText} receiver (PID {s.Endpoint.ProductId:X4})" : s.Endpoint.BusText);
         ConsoleOut.KeyValue("VID:PID", $"{s.Endpoint.VendorId:X4}:{s.Endpoint.ProductId:X4}");
-        ConsoleOut.KeyValue("Device-Index", d.DeviceIndex == HidppMessage.DirectDeviceIndex ? "0xFF (direkt)" : $"{d.DeviceIndex} (Receiver-Slot)");
-        ConsoleOut.KeyValue("Protokoll", s.Protocol is { } p ? $"HID++ {p}" : "?");
-        ConsoleOut.KeyValue("Software-ID", $"0x{d.SoftwareId:X} (eigene Antworten erkennbar)");
+        ConsoleOut.KeyValue("Device index", d.DeviceIndex == HidppMessage.DirectDeviceIndex ? "0xFF (direct)" : $"{d.DeviceIndex} (receiver slot)");
+        ConsoleOut.KeyValue("Protocol", s.Protocol is { } p ? $"HID++ {p}" : "?");
+        ConsoleOut.KeyValue("Software ID", $"0x{d.SoftwareId:X} (identifies own responses)");
         foreach (var c in s.Channel.Collections)
             ConsoleOut.KeyValue("Collection", $"{c.CollectionTag} UP 0x{c.UsagePage:X4} U 0x{c.Usage:X4} In {c.InputReportLength} Out {c.OutputReportLength}");
 
         var name = await TryAsync(() => DeviceIdentity.GetNameAsync(d, ct)).ConfigureAwait(false);
         var kind = await TryStructAsync(() => DeviceIdentity.GetKindAsync(d, ct)).ConfigureAwait(false);
         ConsoleOut.KeyValue("Name (0x0005)", name);
-        ConsoleOut.KeyValue("Typ", kind?.ToString());
+        ConsoleOut.KeyValue("Type", kind?.ToString());
 
         var fw = await TryAsync(() => DeviceIdentity.GetFirmwareInfoAsync(d, ct)).ConfigureAwait(false);
         if (fw is not null)
         {
-            ConsoleOut.KeyValue("Unit-ID", fw.UnitIdText);
-            ConsoleOut.KeyValue("Modell-IDs", string.Join(", ", fw.ModelIds.Select(m => m.ToString("X4"))));
-            ConsoleOut.KeyValue("Transporte", $"0x{fw.Transport:X4} ({TransportText(fw.Transport)})");
+            ConsoleOut.KeyValue("Unit ID", fw.UnitIdText);
+            ConsoleOut.KeyValue("Model IDs", string.Join(", ", fw.ModelIds.Select(m => m.ToString("X4"))));
+            ConsoleOut.KeyValue("Transports", $"0x{fw.Transport:X4} ({TransportText(fw.Transport)})");
             var serial = await TryAsync(() => DeviceIdentity.GetSerialNumberAsync(d, ct)).ConfigureAwait(false);
-            ConsoleOut.KeyValue("Seriennummer", serial);
+            ConsoleOut.KeyValue("Serial number", serial);
             var entities = await TryAsync(() => DeviceIdentity.GetFirmwareEntitiesAsync(d, ct)).ConfigureAwait(false) ?? [];
             var first = true;
             foreach (var e in entities)
             {
-                ConsoleOut.KeyValue(first ? "Firmware" : "", $"[{e.Index}] {e.TypeName,-18} {e.VersionText}{(e.Active ? " (aktiv)" : "")}");
+                ConsoleOut.KeyValue(first ? "Firmware" : "", $"[{e.Index}] {e.TypeName,-18} {e.VersionText}{(e.Active ? " (active)" : "")}");
                 first = false;
             }
         }
@@ -173,7 +173,7 @@ internal static class Commands
     public static async Task<int> FeaturesAsync(ProbeSession s, CancellationToken ct)
     {
         var features = await s.Device.EnumerateFeaturesAsync(ct).ConfigureAwait(false);
-        ConsoleOut.Heading($"Features von {s.Endpoint.DisplayName}: {features.Count} (inkl. Root)");
+        ConsoleOut.Heading($"Features of {s.Endpoint.DisplayName}: {features.Count} (incl. Root)");
         var table = new ConsoleTable("Idx", "Feature", "Name", "Ver", "Flags");
         foreach (var f in features)
             table.Add(f.Index, $"0x{f.FeatureId:X4}", f.Name, f.Version, f.FlagsText);
@@ -186,7 +186,7 @@ internal static class Commands
         {
             var f = features.FirstOrDefault(x => x.FeatureId == id);
             ConsoleOut.Line(f is null ? ConsoleColor.DarkGray : ConsoleColor.Green,
-                $"  {(f is null ? "–" : "✔")} 0x{id:X4} {FeatureIds.GetName(id)}{(f is null ? " (nicht vorhanden)" : $" an Index {f.Index}, v{f.Version}")}");
+                $"  {(f is null ? "–" : "✔")} 0x{id:X4} {FeatureIds.GetName(id)}{(f is null ? " (not present)" : $" at index {f.Index}, v{f.Version}")}");
         }
         return 0;
     }
@@ -198,12 +198,12 @@ internal static class Commands
         var rc = await ReprogControlsV4Feature.TryCreateAsync(s.Device, ct).ConfigureAwait(false);
         if (rc is null)
         {
-            ConsoleOut.Error("Das Gerät hat kein REPROG_CONTROLS_V4 (0x1B04).");
+            ConsoleOut.Error("The device has no REPROG_CONTROLS_V4 (0x1B04).");
             return 2;
         }
 
         var controls = await rc.GetAllControlsAsync(ct).ConfigureAwait(false);
-        ConsoleOut.Heading($"Tasten (0x1B04 an Index {rc.FeatureIndex}, v{rc.Feature.Version}): {controls.Count}");
+        ConsoleOut.Heading($"Buttons (0x1B04 at index {rc.FeatureIndex}, v{rc.Feature.Version}): {controls.Count}");
         var table = new ConsoleTable("Idx", "CID", "Name", "TID", "Pos", "Grp", "GMask", "Flags", "Reporting");
         var persistent = new List<ControlInfo>();
         foreach (var c in controls)
@@ -212,7 +212,7 @@ internal static class Commands
             if (c.IsDivertable || c.Flags.HasFlag(ControlFlags.Reprogrammable))
             {
                 var r = await TryAsync(() => rc.GetReportingAsync(c.ControlId, ct)).ConfigureAwait(false);
-                reporting = r?.StateText ?? "Fehler";
+                reporting = r?.StateText ?? "error";
                 if (r is { PersistentlyDiverted: true } or { IsRemapped: true }) persistent.Add(c);
             }
             table.Add(c.Index, ControlIds.Format(c.ControlId), c.Name, $"0x{c.TaskId:X4}", c.Position, c.Group,
@@ -222,15 +222,15 @@ internal static class Commands
 
         Console.WriteLine();
         var divertable = controls.Where(c => c.IsDivertable).ToList();
-        ConsoleOut.Info($"  Umleitbar (divertable): {string.Join(", ", divertable.Select(c => $"{ControlIds.Format(c.ControlId)} {c.Name}"))}");
+        ConsoleOut.Info($"  Divertable:  {string.Join(", ", divertable.Select(c => $"{ControlIds.Format(c.ControlId)} {c.Name}"))}");
         var rawXY = divertable.Where(c => c.SupportsRawXY).ToList();
-        ConsoleOut.Info($"  Mit Raw-XY:             {(rawXY.Count == 0 ? "keine" : string.Join(", ", rawXY.Select(c => ControlIds.Format(c.ControlId))))}");
+        ConsoleOut.Info($"  With raw XY: {(rawXY.Count == 0 ? "none" : string.Join(", ", rawXY.Select(c => ControlIds.Format(c.ControlId))))}");
         if (persistent.Count > 0)
-            ConsoleOut.Warn($"Dauerhaft umgeleitet/umgemappt: {string.Join(", ", persistent.Select(c => ControlIds.Format(c.ControlId)))} " +
-                            "– vermutlich von Options+. Zurücksetzen mit: ringmouse-probe reset --all");
+            ConsoleOut.Warn($"Persistently diverted/remapped: {string.Join(", ", persistent.Select(c => ControlIds.Format(c.ControlId)))} " +
+                            "– probably by Options+. Reset with: ringmouse-probe reset --all");
         var example = divertable.FirstOrDefault(c => ControlIds.GetStandardMouseButton(c.ControlId) == StandardMouseButton.None) ?? divertable.FirstOrDefault();
         if (example is not null)
-            ConsoleOut.Hint($"  Live testen: ringmouse-probe live --cid {ControlIds.Format(example.ControlId)}   (Strg+C beendet)");
+            ConsoleOut.Hint($"  Test live: ringmouse-probe live --cid {ControlIds.Format(example.ControlId)}   (Ctrl+C quits)");
         return 0;
     }
 
@@ -241,30 +241,30 @@ internal static class Commands
         var battery = await BatteryFeature.DetectAsync(s.Device, ct).ConfigureAwait(false);
         if (battery is null)
         {
-            ConsoleOut.Error("Kein Akku-Feature (0x1004/0x1001/0x1000) gefunden.");
+            ConsoleOut.Error("No battery feature (0x1004/0x1001/0x1000) found.");
             return 2;
         }
 
         var r = await battery.ReadAsync(ct).ConfigureAwait(false);
-        ConsoleOut.Heading("Akku");
-        ConsoleOut.KeyValue("Feature", $"0x{battery.Feature.FeatureId:X4} {battery.Feature.Name} (Index {battery.FeatureIndex}, v{battery.Feature.Version})");
-        ConsoleOut.KeyValue("Ladestand", r.Percent is { } pct ? $"{pct} %{(r.PercentIsEstimated ? " (aus Spannung geschätzt)" : "")}" : "unbekannt");
-        ConsoleOut.KeyValue("Stufe", r.Level.ToString());
+        ConsoleOut.Heading("Battery");
+        ConsoleOut.KeyValue("Feature", $"0x{battery.Feature.FeatureId:X4} {battery.Feature.Name} (index {battery.FeatureIndex}, v{battery.Feature.Version})");
+        ConsoleOut.KeyValue("Battery level", r.Percent is { } pct ? $"{pct} %{(r.PercentIsEstimated ? " (estimated from voltage)" : "")}" : "unknown");
+        ConsoleOut.KeyValue("Level", r.Level.ToString());
         ConsoleOut.KeyValue("Status", DescribeState(r.State));
-        ConsoleOut.KeyValue("Ext. Versorgung", r.ExternalPower ? "ja" : "nein");
-        if (r.VoltageMillivolts is { } mv) ConsoleOut.KeyValue("Spannung", $"{mv} mV");
+        ConsoleOut.KeyValue("External power", r.ExternalPower ? "yes" : "no");
+        if (r.VoltageMillivolts is { } mv) ConsoleOut.KeyValue("Voltage", $"{mv} mV");
         return 0;
     }
 
     public static string DescribeState(ChargeState state) => state switch
     {
-        ChargeState.Discharging => "entlädt",
-        ChargeState.Charging => "lädt",
-        ChargeState.ChargingSlow => "lädt langsam",
-        ChargeState.Full => "voll geladen",
-        ChargeState.NotCharging => "Netzteil, lädt nicht",
-        ChargeState.Error => "Ladefehler",
-        _ => "unbekannt",
+        ChargeState.Discharging => "discharging",
+        ChargeState.Charging => "charging",
+        ChargeState.ChargingSlow => "charging slowly",
+        ChargeState.Full => "fully charged",
+        ChargeState.NotCharging => "external power, not charging",
+        ChargeState.Error => "charging error",
+        _ => "unknown",
     };
 
     // ------------------------------------------------------------------ dpi
@@ -274,25 +274,25 @@ internal static class Commands
         var dpi = await DpiFeature.DetectAsync(s.Device, ct).ConfigureAwait(false);
         if (dpi is null)
         {
-            ConsoleOut.Error("Das Gerät hat kein DPI-Feature (0x2201 ADJUSTABLE_DPI bzw. 0x2202 EXTENDED_ADJUSTABLE_DPI).");
+            ConsoleOut.Error("The device has no DPI feature (0x2201 ADJUSTABLE_DPI or 0x2202 EXTENDED_ADJUSTABLE_DPI).");
             return 2;
         }
 
         var sensors = await dpi.GetSensorCountAsync(ct).ConfigureAwait(false);
         var list = await dpi.GetDpiListAsync(0, ct).ConfigureAwait(false);
         var state = await dpi.GetDpiAsync(0, ct).ConfigureAwait(false);
-        ConsoleOut.Heading($"DPI (0x{dpi.FeatureId:X4} an Index {dpi.Feature.Index}, v{dpi.Feature.Version})");
-        ConsoleOut.KeyValue("Sensoren", sensors.ToString());
-        ConsoleOut.KeyValue("Aktuell", $"{state.CurrentDpi} DPI");
-        ConsoleOut.KeyValue("Standard", $"{state.DefaultDpi} DPI");
-        ConsoleOut.KeyValue("Unterstützt", CompressList(list));
+        ConsoleOut.Heading($"DPI (0x{dpi.FeatureId:X4} at index {dpi.Feature.Index}, v{dpi.Feature.Version})");
+        ConsoleOut.KeyValue("Sensors", sensors.ToString());
+        ConsoleOut.KeyValue("Current", $"{state.CurrentDpi} DPI");
+        ConsoleOut.KeyValue("Default", $"{state.DefaultDpi} DPI");
+        ConsoleOut.KeyValue("Supported", CompressList(list));
 
         if (s.Options.SetDpi is { } wanted)
         {
             var target = DpiFeature.Snap(wanted, list);
             var set = await dpi.SetDpiAsync(target, 0, ct).ConfigureAwait(false);
             var after = await dpi.GetDpiAsync(0, ct).ConfigureAwait(false);
-            ConsoleOut.Good($"  DPI gesetzt: angefragt {wanted}, gesetzt {set}, Gerät meldet {after.CurrentDpi}. (Nicht persistent – gilt bis zum Reconnect.)");
+            ConsoleOut.Good($"  DPI set: requested {wanted}, set {set}, device reports {after.CurrentDpi}. (Not persistent – applies until reconnect.)");
         }
         return 0;
     }
@@ -304,7 +304,7 @@ internal static class Commands
         {
             var step = values[1] - values[0];
             var even = step > 0 && values.Zip(values.Skip(1)).All(p => p.Second - p.First == step);
-            if (even) return $"{values[0]}–{values[^1]} (Schritt {step}, {values.Count} Werte)";
+            if (even) return $"{values[0]}–{values[^1]} (step {step}, {values.Count} values)";
         }
         return string.Join(", ", values);
     }
@@ -318,7 +318,7 @@ internal static class Commands
         var rc = await ReprogControlsV4Feature.TryCreateAsync(d, ct).ConfigureAwait(false);
         if (rc is null)
         {
-            ConsoleOut.Error("Das Gerät hat kein REPROG_CONTROLS_V4 (0x1B04).");
+            ConsoleOut.Error("The device has no REPROG_CONTROLS_V4 (0x1B04).");
             return 2;
         }
         var controls = await rc.GetAllControlsAsync(ct).ConfigureAwait(false);
@@ -335,16 +335,16 @@ internal static class Commands
             foreach (var cid in s.Options.ControlIds)
             {
                 var c = controls.FirstOrDefault(x => x.ControlId == cid)
-                        ?? throw new ProbeException($"{ControlIds.Format(cid)} gibt es auf diesem Gerät nicht – siehe 'controls'.");
-                if (!c.IsDivertable) ConsoleOut.Warn($"{ControlIds.Format(cid)} {c.Name} ist laut Gerät nicht umleitbar – Versuch trotzdem.");
+                        ?? throw new ProbeException($"{ControlIds.Format(cid)} does not exist on this device – see 'controls'.");
+                if (!c.IsDivertable) ConsoleOut.Warn($"{ControlIds.Format(cid)} {c.Name} is not divertable according to the device – trying anyway.");
                 targets.Add(c);
             }
         }
         else
         {
-            throw new ProbeException("Bitte --cid <CID> oder --all angeben (siehe 'ringmouse-probe controls').");
+            throw new ProbeException("Please specify --cid <CID> or --all (see 'ringmouse-probe controls').");
         }
-        if (targets.Count == 0) throw new ProbeException("Keine umleitbaren Tasten gefunden.");
+        if (targets.Count == 0) throw new ProbeException("No divertable buttons found.");
 
         OptionsPlusCheck.WarnIfRunning();
 
@@ -368,13 +368,13 @@ internal static class Commands
             {
                 bool? raw = s.Options.RawXY ? t.SupportsRawXY : null;
                 if (s.Options.RawXY && !t.SupportsRawXY)
-                    ConsoleOut.Warn($"{ControlIds.Format(t.ControlId)} unterstützt kein Raw-XY – nur Tasten-Events.");
+                    ConsoleOut.Warn($"{ControlIds.Format(t.ControlId)} does not support raw XY – button events only.");
                 var r = await rc.SetDivertAsync(t.ControlId, true, raw, ct).ConfigureAwait(false);
-                ConsoleOut.Good($"  umgeleitet: {ControlIds.Format(t.ControlId)} {t.Name} → {r.StateText}");
+                ConsoleOut.Good($"  diverted: {ControlIds.Format(t.ControlId)} {t.Name} → {r.StateText}");
             }
         }
 
-        ConsoleOut.Heading($"Live-Modus: {targets.Count} Taste(n) umgeleitet – Taste drücken, Strg+C beendet");
+        ConsoleOut.Heading($"Live mode: {targets.Count} button(s) diverted – press a button, Ctrl+C quits");
         await ApplyAsync().ConfigureAwait(false);
         using var durationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         if (s.Options.DurationSeconds is { } liveSeconds) durationCts.CancelAfter(TimeSpan.FromSeconds(liveSeconds));
@@ -385,7 +385,7 @@ internal static class Commands
             while (true)
             {
                 await reapply.WaitAsync(ct).ConfigureAwait(false);
-                ConsoleOut.Warn("Gerät meldet Reconnect – setze Umleitung neu …");
+                ConsoleOut.Warn("Device reports reconnect – reapplying diversion …");
                 await Task.Delay(300, ct).ConfigureAwait(false);
                 try
                 {
@@ -393,7 +393,7 @@ internal static class Commands
                 }
                 catch (HidppException ex)
                 {
-                    ConsoleOut.Error($"Neu setzen fehlgeschlagen: {ex.Message}");
+                    ConsoleOut.Error($"Reapplying failed: {ex.Message}");
                 }
             }
         }
@@ -409,11 +409,11 @@ internal static class Commands
                 try
                 {
                     var r = await rc.RestoreAsync(before, CancellationToken.None).ConfigureAwait(false);
-                    ConsoleOut.Info($"  wiederhergestellt: {ControlIds.Format(cid)} → {r.StateText}");
+                    ConsoleOut.Info($"  restored: {ControlIds.Format(cid)} → {r.StateText}");
                 }
                 catch (HidppException ex)
                 {
-                    ConsoleOut.Error($"Wiederherstellen von {ControlIds.Format(cid)} fehlgeschlagen: {ex.Message}");
+                    ConsoleOut.Error($"Restoring {ControlIds.Format(cid)} failed: {ex.Message}");
                 }
             }
         }
@@ -430,7 +430,7 @@ internal static class Commands
         var printer = new EventPrinter(features, controls, s.Device.SoftwareId);
         s.Channel.MessageReceived += (_, message, _) => printer.Print(message);
 
-        ConsoleOut.Heading("Monitor: alle HID++-Reports des Geräts (Strg+C beendet)");
+        ConsoleOut.Heading("Monitor: all HID++ reports of the device (Ctrl+C quits)");
         OptionsPlusCheck.WarnIfRunning();
         try
         {
@@ -451,7 +451,7 @@ internal static class Commands
         var rc = await ReprogControlsV4Feature.TryCreateAsync(s.Device, ct).ConfigureAwait(false);
         if (rc is null)
         {
-            ConsoleOut.Error("Das Gerät hat kein REPROG_CONTROLS_V4 (0x1B04).");
+            ConsoleOut.Error("The device has no REPROG_CONTROLS_V4 (0x1B04).");
             return 2;
         }
         var controls = await rc.GetAllControlsAsync(ct).ConfigureAwait(false);
@@ -460,8 +460,8 @@ internal static class Commands
             : controls.Where(c => c.IsDivertable || c.Flags.HasFlag(ControlFlags.Reprogrammable)).ToList();
 
         OptionsPlusCheck.WarnIfRunning();
-        ConsoleOut.Heading("Umleitungen zurücksetzen");
-        var table = new ConsoleTable("CID", "Name", "vorher", "nachher");
+        ConsoleOut.Heading("Resetting diversions");
+        var table = new ConsoleTable("CID", "Name", "before", "after");
         foreach (var c in targets)
         {
             var before = await rc.GetReportingAsync(c.ControlId, ct).ConfigureAwait(false);

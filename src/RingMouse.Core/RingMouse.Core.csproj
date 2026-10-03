@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>RingMouse.Core</RootNamespace>
-    <Description>Reine Logik von RingMouse: Config, Ring-Geometrie/-Interaktion, Profile, Akku-Schwellen, Tastenkürzel – ohne Win32/UI.</Description>
+    <Description>Pure RingMouse logic: configuration, ring geometry and interaction, profiles, battery thresholds, keyboard shortcuts, localization – no Win32/UI.</Description>
   </PropertyGroup>
 
   <ItemGroup>

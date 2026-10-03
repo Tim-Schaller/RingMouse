@@ -80,7 +80,7 @@ internal sealed class RingController
     /// <summary>Für den Selbsttest: Ringmitte (physische Pixel) und Zustand.</summary>
     internal (double X, double Y) CenterPx => _center;
 
-    internal string DiagnosticState => _interaction.IsOpen ? $"{_interaction.Phase} \"{_interaction.CurrentName}\"" : "geschlossen";
+    internal string DiagnosticState => _interaction.IsOpen ? $"{_interaction.Phase} \"{_interaction.CurrentName}\"" : "closed";
 
     public void Update(RingMouseConfig config)
     {
@@ -196,7 +196,7 @@ internal sealed class RingController
 
         var tapCapturable = !target.IsLikelyElevated || ProcessRights.CanDriveElevatedWindows;
         if (!tapCapturable && target.ProcessName is { } name && _uipiLogged.Add(name))
-            _log.LogWarning("Admin-Fenster {Process} im Vordergrund: Klicks/Esc sind für RingMouse nicht erfassbar (UIPI) – Ring arbeitet nur im Halten-Modus", name);
+            _log.LogWarning("Admin window {Process} in the foreground: RingMouse cannot capture clicks/Esc there (UIPI) – the ring only works in hold mode", name);
 
         _interaction = new RingInteraction(profile.Ring);
         var options = new RingInteractionOptions(_config.Ring.Mode, _config.Ring.Deadzone, _config.Ring.Radius,
@@ -205,7 +205,7 @@ internal sealed class RingController
         if (_interaction.Open(ringName, e.ControlId, NowMs, options) is not RingCommand.Show show)
         {
             ClearTrigger();
-            _log.LogWarning("Ring \"{Ring}\" existiert nicht oder ist leer (Profil {Profile})", ringName, profile.Name);
+            _log.LogWarning("Ring \"{Ring}\" does not exist or is empty (profile {Profile})", ringName, profile.Name);
             return;
         }
 
@@ -227,7 +227,7 @@ internal sealed class RingController
             CompositionTarget.Rendering += OnRendering;
             _renderingHooked = true;
         }
-        _log.LogDebug("Ring \"{Ring}\" geöffnet für {Process} (Profil {Profile}, Modus {Mode})", ringName, target.ProcessName, profile.Name, _config.Ring.Mode);
+        _log.LogDebug("Ring \"{Ring}\" opened for {Process} (profile {Profile}, mode {Mode})", ringName, target.ProcessName, profile.Name, _config.Ring.Mode);
     }
 
     private void OnRendering(object? sender, EventArgs e)
@@ -238,7 +238,7 @@ internal sealed class RingController
         {
             _latencyLogged = true;
             if (_config.Debug.LogRingLatency && _openTimestamp != 0)
-                _log.LogInformation("Ring sichtbar {Ms:0.0} ms nach Tastendruck", Stopwatch.GetElapsedTime(_openTimestamp).TotalMilliseconds);
+                _log.LogInformation("Ring visible {Ms:0.0} ms after button press", Stopwatch.GetElapsedTime(_openTimestamp).TotalMilliseconds);
         }
         UpdatePointer(now);
         Apply(_interaction.Tick(now));
@@ -266,7 +266,7 @@ internal sealed class RingController
         }
         catch (Exception ex)
         {
-            _log.LogDebug(ex, "Mauszeiger ein-/ausblenden fehlgeschlagen");
+            _log.LogDebug(ex, "Showing/hiding the mouse pointer failed");
         }
     }
 
@@ -323,7 +323,7 @@ internal sealed class RingController
                 break;
 
             case RingCommand.SwitchRing s:
-                _log.LogDebug("Ring-Ebene \"{Ring}\"", s.Name);
+                _log.LogDebug("Ring level \"{Ring}\"", s.Name);
                 var forward = _interaction.Depth > _shownDepth;
                 _shownDepth = _interaction.Depth;
                 _window.Swap(RingVisual.Build(s.Ring, _theme, _config.Ring, s.IsSubmenu), _config.Ring.Animation, forward);
@@ -341,7 +341,7 @@ internal sealed class RingController
                 break;
 
             case RingCommand.Close c:
-                _log.LogDebug("Ring geschlossen: {Reason}", c.Reason);
+                _log.LogDebug("Ring closed: {Reason}", c.Reason);
                 // Abgelöst durch einen neuen Ring: sofort weg, sonst kurz ausblenden
                 CloseRing(restoreCursor: c.Reason != RingCloseReason.Superseded, animate: c.Reason != RingCloseReason.Superseded);
                 break;

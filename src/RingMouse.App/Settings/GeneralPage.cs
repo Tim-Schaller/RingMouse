@@ -4,6 +4,7 @@ using RingMouse.Core;
 using RingMouse.Core.Config;
 using RingMouse.Platform;
 using RingMouse.Platform.Windows;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -13,58 +14,94 @@ internal sealed class GeneralPage : UserControl
     private readonly SettingsContext _ctx;
     private readonly TextBlock _autostartStatus = Form.Hint("");
 
-    public GeneralPage(SettingsContext ctx, Action resetToDefaults)
+    public GeneralPage(SettingsContext ctx, Action resetToDefaults, Action saveAndRestart)
     {
         _ctx = ctx;
         var g = ctx.Config.General;
         var stack = new StackPanel { Margin = new Thickness(12) };
 
+        // Sprache – gilt nach einem Neustart überall (Tray-Menü und Fenster werden beim Start aufgebaut)
+        stack.Children.Add(Form.Group(L("Language", "Sprache"),
+            Form.Row(L("User interface", "Oberfläche"), Form.Choice(
+                [(UiLanguage.Auto, L("Automatic (Windows display language)", "Automatisch (Windows-Anzeigesprache)")),
+                 (UiLanguage.English, "English"),
+                 (UiLanguage.German, "Deutsch")],
+                g.Language, v => { g.Language = v; ctx.MarkDirty(); })),
+            Form.Hint(L("A new language takes effect after RingMouse restarts.", "Eine neue Sprache gilt nach einem Neustart von RingMouse.")),
+            Form.Buttons(Form.Button(L("Save and restart", "Speichern und neu starten"), saveAndRestart))));
+
         // Autostart
-        var off = new RadioButton { Content = "Nicht automatisch starten", GroupName = "autostart", IsChecked = g.Autostart == AutostartMode.Off };
-        var run = new RadioButton { Content = "Mit Windows starten (normale Rechte, HKCU\\…\\Run)", GroupName = "autostart", IsChecked = g.Autostart == AutostartMode.Run };
-        var task = new RadioButton { Content = "Als Aufgabe \"Mit höchsten Privilegien\" bei Anmeldung und beim Entsperren", GroupName = "autostart", IsChecked = g.Autostart == AutostartMode.Task };
+        var off = new RadioButton { Content = L("Don't start automatically", "Nicht automatisch starten"), GroupName = "autostart", IsChecked = g.Autostart == AutostartMode.Off };
+        var run = new RadioButton
+        {
+            Content = L("Start with Windows (normal rights, HKCU\\…\\Run)", "Mit Windows starten (normale Rechte, HKCU\\…\\Run)"),
+            GroupName = "autostart",
+            IsChecked = g.Autostart == AutostartMode.Run,
+        };
+        var task = new RadioButton
+        {
+            Content = L("As a scheduled task \"with highest privileges\" at sign-in and on unlock",
+                "Als Aufgabe \"Mit höchsten Privilegien\" bei Anmeldung und beim Entsperren"),
+            GroupName = "autostart",
+            IsChecked = g.Autostart == AutostartMode.Task,
+        };
         off.Checked += (_, _) => SetAutostart(AutostartMode.Off);
         run.Checked += (_, _) => SetAutostart(AutostartMode.Run);
         task.Checked += (_, _) => SetAutostart(AutostartMode.Task);
-        var apply = Form.Button("Autostart jetzt einrichten", ApplyAutostart);
+        var apply = Form.Button(L("Set up autostart now", "Autostart jetzt einrichten"), ApplyAutostart);
         stack.Children.Add(Form.Group("Autostart", off, run, task, Form.Hint(AutostartAdvice()), Form.Buttons(apply), _autostartStatus));
         UpdateAutostartStatus();
 
         // Verhalten
-        stack.Children.Add(Form.Group("Verhalten",
-            Form.Check("Warnen, wenn Logi Options+ läuft", g.WarnIfOptionsPlusRunning, v => { g.WarnIfOptionsPlusRunning = v; ctx.MarkDirty(); }),
-            Form.Check("Analytics-Key-Events der Maus abschalten (Options+ meldet damit jeden Klick)", g.DisableAnalyticsReporting,
+        stack.Children.Add(Form.Group(L("Behavior", "Verhalten"),
+            Form.Check(L("Warn if Logi Options+ is running", "Warnen, wenn Logi Options+ läuft"), g.WarnIfOptionsPlusRunning,
+                v => { g.WarnIfOptionsPlusRunning = v; ctx.MarkDirty(); }),
+            Form.Check(L("Turn off the mouse's analytics key events (Options+ uses them to report every click)",
+                    "Analytics-Key-Events der Maus abschalten (Options+ meldet damit jeden Klick)"), g.DisableAnalyticsReporting,
                 v => { g.DisableAnalyticsReporting = v; ctx.MarkDirty(); }),
-            Form.Check("Raw-HID++-Log aufzeichnen (logs\\hidpp-*.log, nur zur Fehlersuche)", ctx.Config.Debug.RawHidLog,
-                v => { ctx.Config.Debug.RawHidLog = v; ctx.MarkDirty(); }),
-            Form.Check("Öffnungslatenz des Rings loggen", ctx.Config.Debug.LogRingLatency, v => { ctx.Config.Debug.LogRingLatency = v; ctx.MarkDirty(); }),
-            Form.Row("Log-Level", Form.Choice(
-                [("Debug", "Debug (ausführlich)"), ("Information", "Information (Standard)"), ("Warning", "Nur Warnungen"), ("Error", "Nur Fehler")],
+            Form.Check(L("Record raw HID++ log (logs\\hidpp-*.log, for troubleshooting only)", "Raw-HID++-Log aufzeichnen (logs\\hidpp-*.log, nur zur Fehlersuche)"),
+                ctx.Config.Debug.RawHidLog, v => { ctx.Config.Debug.RawHidLog = v; ctx.MarkDirty(); }),
+            Form.Check(L("Log the ring's opening latency", "Öffnungslatenz des Rings loggen"), ctx.Config.Debug.LogRingLatency,
+                v => { ctx.Config.Debug.LogRingLatency = v; ctx.MarkDirty(); }),
+            Form.Row(L("Log level", "Log-Level"), Form.Choice(
+                [("Debug", L("Debug (verbose)", "Debug (ausführlich)")), ("Information", L("Information (default)", "Information (Standard)")),
+                 ("Warning", L("Warnings only", "Nur Warnungen")), ("Error", L("Errors only", "Nur Fehler"))],
                 g.LogLevel, v => { g.LogLevel = v; ctx.MarkDirty(); }))));
 
         // Dateien
-        stack.Children.Add(Form.Group("Dateien",
-            Form.Hint($"Config: {AppPaths.ConfigFile}\nLogs: {AppPaths.LogDirectory}\nDie JSON-Datei ist die Quelle der Wahrheit und wird bei Änderungen sofort neu geladen. " +
-                      "Speichern aus diesem Fenster schreibt die Datei neu (Kommentare gehen dabei verloren)."),
+        stack.Children.Add(Form.Group(L("Files", "Dateien"),
+            Form.Hint(L($"Config: {AppPaths.ConfigFile}\nLogs: {AppPaths.LogDirectory}\nThe JSON file is the source of truth and is reloaded immediately when it changes. " +
+                        "Saving from this window rewrites the file (comments are lost).",
+                        $"Config: {AppPaths.ConfigFile}\nLogs: {AppPaths.LogDirectory}\nDie JSON-Datei ist die Quelle der Wahrheit und wird bei Änderungen sofort neu geladen. " +
+                        "Speichern aus diesem Fenster schreibt die Datei neu (Kommentare gehen dabei verloren).")),
             Form.Buttons(
-                Form.Button("Config-Datei öffnen", () => ctx.Host.OpenConfigFile()),
-                Form.Button("Ordner öffnen", () => ctx.Host.OpenConfigFolder()),
-                Form.Button("Logs öffnen", () => ctx.Host.OpenLogs()),
-                Form.Button("Standard wiederherstellen …", resetToDefaults))));
+                Form.Button(L("Open config file", "Config-Datei öffnen"), () => ctx.Host.OpenConfigFile()),
+                Form.Button(L("Open folder", "Ordner öffnen"), () => ctx.Host.OpenConfigFolder()),
+                Form.Button(L("Open logs", "Logs öffnen"), () => ctx.Host.OpenLogs()),
+                Form.Button(L("Restore defaults …", "Standard wiederherstellen …"), resetToDefaults))));
 
         // Info
         var running = OptionsPlusDetector.RunningProcesses();
         stack.Children.Add(Form.Group("Info",
             Form.Row("Version", new TextBlock { Text = typeof(GeneralPage).Assembly.GetName().Version?.ToString() ?? "?" }),
-            Form.Row("Programm", new TextBlock { Text = Environment.ProcessPath ?? "?", TextWrapping = TextWrapping.Wrap }),
-            Form.Row("Rechte", new TextBlock
+            Form.Row(L("Program", "Programm"), new TextBlock { Text = Environment.ProcessPath ?? "?", TextWrapping = TextWrapping.Wrap }),
+            Form.Row(L("Rights", "Rechte"), new TextBlock
             {
-                Text = $"{(ProcessRights.IsElevated ? "mit Adminrechten" : "normale Rechte")} · uiAccess {(ProcessRights.HasUiAccess ? "ja" : "nein")} · " +
-                       $"Konto {(ProcessRights.UserIsAdministrator ? "Administrator" : "Standardbenutzer")}",
+                Text = L($"{(ProcessRights.IsElevated ? "with admin rights" : "normal rights")} · uiAccess {(ProcessRights.HasUiAccess ? "yes" : "no")} · " +
+                         $"account {(ProcessRights.UserIsAdministrator ? "administrator" : "standard user")}",
+                         $"{(ProcessRights.IsElevated ? "mit Adminrechten" : "normale Rechte")} · uiAccess {(ProcessRights.HasUiAccess ? "ja" : "nein")} · " +
+                         $"Konto {(ProcessRights.UserIsAdministrator ? "Administrator" : "Standardbenutzer")}"),
                 TextWrapping = TextWrapping.Wrap,
             }),
-            Form.Row("Logi Options+", new TextBlock { Text = running.Count == 0 ? "läuft nicht ✔" : $"läuft ({string.Join(", ", running)}) ⚠", TextWrapping = TextWrapping.Wrap }),
-            Form.Row("Netzwerk/Telemetrie", new TextBlock { Text = "keine – RingMouse öffnet keine Netzwerkverbindungen" })));
+            Form.Row("Logi Options+", new TextBlock
+            {
+                Text = running.Count == 0
+                    ? L("not running ✔", "läuft nicht ✔")
+                    : L($"running ({string.Join(", ", running)}) ⚠", $"läuft ({string.Join(", ", running)}) ⚠"),
+                TextWrapping = TextWrapping.Wrap,
+            }),
+            Form.Row(L("Network/telemetry", "Netzwerk/Telemetrie"),
+                new TextBlock { Text = L("none – RingMouse opens no network connections", "keine – RingMouse öffnet keine Netzwerkverbindungen") })));
 
         Content = Form.Scroll(stack);
     }
@@ -87,19 +124,34 @@ internal sealed class GeneralPage : UserControl
     private void UpdateAutostartStatus()
     {
         var current = _ctx.Host.Autostart.DetectCurrent();
-        _autostartStatus.Text = $"Derzeit eingerichtet: {current switch { AutostartMode.Run => "Run-Eintrag", AutostartMode.Task => "Aufgabe", _ => "kein Autostart" }}" +
-                                (current == _ctx.Config.General.Autostart ? "" : " – \"Autostart jetzt einrichten\" oder Speichern übernimmt die Auswahl.");
+        var mode = current switch
+        {
+            AutostartMode.Run => L("Run entry", "Run-Eintrag"),
+            AutostartMode.Task => L("scheduled task", "Aufgabe"),
+            _ => L("no autostart", "kein Autostart"),
+        };
+        _autostartStatus.Text = L($"Currently set up: {mode}", $"Derzeit eingerichtet: {mode}") +
+                                (current == _ctx.Config.General.Autostart
+                                    ? ""
+                                    : L(" – \"Set up autostart now\" or saving applies the selection.",
+                                        " – \"Autostart jetzt einrichten\" oder Speichern übernimmt die Auswahl."));
     }
 
     private static string AutostartAdvice()
     {
         if (ProcessRights.HasUiAccess)
-            return "Diese Installation läuft mit uiAccess – Ring und Eingaben funktionieren auch in Admin-Fenstern. \"Mit Windows starten\" genügt.";
+            return L("This installation runs with uiAccess – the ring and input also work in admin windows. \"Start with Windows\" is enough.",
+                "Diese Installation läuft mit uiAccess – Ring und Eingaben funktionieren auch in Admin-Fenstern. \"Mit Windows starten\" genügt.");
         if (!ProcessRights.UserIsAdministrator)
-            return "Dein Konto ist ein Standardbenutzer (Adminrechte über ein anderes Konto). \"Höchste Privilegien\" bringt dann nichts: " +
-                   "Admin-Fenster laufen unter dem anderen Konto. Damit Ring-Aktionen auch dort ankommen, RingMouse per " +
-                   "tools\\install-uiaccess.ps1 signiert nach C:\\Program Files installieren (siehe README).";
-        return "\"Höchste Privilegien\" lässt RingMouse mit Adminrechten starten, damit Aktionen auch in Admin-Fenstern ankommen (UIPI). " +
-               "Programme werden trotzdem ohne Adminrechte gestartet. Einrichten fragt einmal per UAC nach.";
+            return L("Your account is a standard user (admin rights via another account). \"Highest privileges\" doesn't help then: " +
+                     "admin windows run under the other account. To make ring actions reach them too, install RingMouse signed to " +
+                     "C:\\Program Files with tools\\install-uiaccess.ps1 (see README).",
+                     "Dein Konto ist ein Standardbenutzer (Adminrechte über ein anderes Konto). \"Höchste Privilegien\" bringt dann nichts: " +
+                     "Admin-Fenster laufen unter dem anderen Konto. Damit Ring-Aktionen auch dort ankommen, RingMouse per " +
+                     "tools\\install-uiaccess.ps1 signiert nach C:\\Program Files installieren (siehe README).");
+        return L("\"Highest privileges\" starts RingMouse with admin rights so that actions also reach admin windows (UIPI). " +
+                 "Programs are still launched without admin rights. Setting it up asks once via UAC.",
+                 "\"Höchste Privilegien\" lässt RingMouse mit Adminrechten starten, damit Aktionen auch in Admin-Fenstern ankommen (UIPI). " +
+                 "Programme werden trotzdem ohne Adminrechte gestartet. Einrichten fragt einmal per UAC nach.");
     }
 }

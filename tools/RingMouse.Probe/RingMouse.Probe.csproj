@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>ringmouse-probe</AssemblyName>
     <RootNamespace>RingMouse.Probe</RootNamespace>
-    <Description>HID++-Discovery-Werkzeug für Logitech-Geräte (Phase 1 von RingMouse).</Description>
+    <Description>HID++ diagnostic tool for Logitech devices (ringmouse-probe).</Description>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 

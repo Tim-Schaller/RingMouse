@@ -247,7 +247,7 @@ public class ConfigTests
     {
         var result = ConfigStore.Parse("{\n  \"ring\": { \"radius\": }\n}");
         Assert.False(result.Success);
-        Assert.Contains("Zeile 2", result.ErrorMessage);
+        Assert.Contains("line 2", result.ErrorMessage);
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class ConfigTests
         var schema = ConfigSerializer.ExportSchema();
         Assert.Contains("\"$schema\"", schema);
         Assert.Contains("appKeys", schema);
-        Assert.Contains("Warnschwellen", schema);
+        Assert.Contains("Warning thresholds", schema);
         System.Text.Json.JsonDocument.Parse(schema).Dispose();
     }
 

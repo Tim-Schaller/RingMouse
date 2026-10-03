@@ -6,6 +6,7 @@ using H.NotifyIcon;
 using H.NotifyIcon.Core;
 using RingMouse.Device;
 using RingMouse.Platform.Display;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Tray;
 
@@ -30,20 +31,20 @@ internal sealed partial class TrayController : IDisposable
 
     public TrayController(Action openSettings, Action openConfig, Action openLogs, Action<bool> toggleRawLog, Action reconnect, Action exit)
     {
-        _statusItem = new MenuItem { Header = "Kein Gerät", IsEnabled = false };
+        _statusItem = new MenuItem { Header = L("No device", "Kein Gerät"), IsEnabled = false };
         _warningItem = new MenuItem { Header = "", Visibility = Visibility.Collapsed, IsEnabled = false };
-        _rawLogItem = new MenuItem { Header = "Raw-HID++-Log aufzeichnen", IsCheckable = true };
+        _rawLogItem = new MenuItem { Header = L("Record raw HID++ log", "Raw-HID++-Log aufzeichnen"), IsCheckable = true };
         _rawLogItem.Click += (_, _) => toggleRawLog(_rawLogItem.IsChecked);
 
-        var settings = new MenuItem { Header = "Einstellungen …", FontWeight = FontWeights.SemiBold };
+        var settings = new MenuItem { Header = L("Settings …", "Einstellungen …"), FontWeight = FontWeights.SemiBold };
         settings.Click += (_, _) => openSettings();
-        var config = new MenuItem { Header = "Config-Datei öffnen" };
+        var config = new MenuItem { Header = L("Open config file", "Config-Datei öffnen") };
         config.Click += (_, _) => openConfig();
-        var logs = new MenuItem { Header = "Logs öffnen" };
+        var logs = new MenuItem { Header = L("Open logs", "Logs öffnen") };
         logs.Click += (_, _) => openLogs();
-        var reconnectItem = new MenuItem { Header = "Geräte neu verbinden" };
+        var reconnectItem = new MenuItem { Header = L("Reconnect devices", "Geräte neu verbinden") };
         reconnectItem.Click += (_, _) => reconnect();
-        var exitItem = new MenuItem { Header = "Beenden" };
+        var exitItem = new MenuItem { Header = L("Exit", "Beenden") };
         exitItem.Click += (_, _) => exit();
 
         var menu = new ContextMenu();
@@ -83,14 +84,14 @@ internal sealed partial class TrayController : IDisposable
     public void UpdateDevice(DeviceSnapshot? device, int? lastPercent, DateTimeOffset? lastTime)
     {
         _device = device;
-        _lastKnown = lastPercent is { } p && lastTime is { } t ? $"zuletzt {p} % ({t:dd.MM. HH:mm})" : null;
+        _lastKnown = lastPercent is { } p && lastTime is { } t ? L($"last known {p} % ({t.ToString("MMM d, HH:mm", Culture)})", $"zuletzt {p} % ({t:dd.MM. HH:mm})") : null;
 
         var battery = device?.Battery;
         var connected = device?.State == DeviceState.Ready;
         var percent = battery?.EffectivePercent ?? (device is null || !connected ? lastPercent : null);
         var powered = battery is { } b && (b.IsCharging || b.ExternalPower || b.IsFull);
         SetIcon(BatteryIcon.Render(percent, powered && connected, connected, SystemTheme.SystemUsesLightTheme, IconSize()));
-        _statusItem.Header = StatusLine(device) ?? "Kein Gerät gefunden";
+        _statusItem.Header = StatusLine(device) ?? L("No device found", "Kein Gerät gefunden");
         UpdateTooltip();
     }
 
@@ -137,11 +138,13 @@ internal sealed partial class TrayController : IDisposable
         if (d is null) return null;
         var name = ShortName(d.Name);
         if (d.State != DeviceState.Ready)
-            return $"{name}: nicht erreichbar{(_lastKnown is null ? "" : " · " + _lastKnown)}";
-        var battery = d.Battery is not { } b ? "kein Akku-Wert"
+            return L($"{name}: unreachable{(_lastKnown is null ? "" : " · " + _lastKnown)}",
+                $"{name}: nicht erreichbar{(_lastKnown is null ? "" : " · " + _lastKnown)}");
+        var battery = d.Battery is not { } b ? L("no battery value", "kein Akku-Wert")
             : b.EffectivePercent is { } p ? $"{p} % · {ChargeText(b.State)}"
             // z.B. beim Laden der MX Vertical: das Gerät meldet dann keinen Prozentwert
-            : $"{ChargeText(b.State)} · Stand unbekannt{(_lastKnown is null ? "" : ", " + _lastKnown)}";
+            : L($"{ChargeText(b.State)} · level unknown{(_lastKnown is null ? "" : ", " + _lastKnown)}",
+                $"{ChargeText(b.State)} · Stand unbekannt{(_lastKnown is null ? "" : ", " + _lastKnown)}");
         return $"{name}: {battery} · {d.Connection}";
     }
 
@@ -151,12 +154,12 @@ internal sealed partial class TrayController : IDisposable
 
     internal static string ChargeText(RingMouse.HidPlusPlus.Features.ChargeState state) => state switch
     {
-        RingMouse.HidPlusPlus.Features.ChargeState.Charging => "lädt",
-        RingMouse.HidPlusPlus.Features.ChargeState.ChargingSlow => "lädt langsam",
-        RingMouse.HidPlusPlus.Features.ChargeState.Full => "voll",
-        RingMouse.HidPlusPlus.Features.ChargeState.NotCharging => "am Kabel",
-        RingMouse.HidPlusPlus.Features.ChargeState.Error => "Ladefehler",
-        RingMouse.HidPlusPlus.Features.ChargeState.Discharging => "entlädt",
+        RingMouse.HidPlusPlus.Features.ChargeState.Charging => L("charging", "lädt"),
+        RingMouse.HidPlusPlus.Features.ChargeState.ChargingSlow => L("charging slowly", "lädt langsam"),
+        RingMouse.HidPlusPlus.Features.ChargeState.Full => L("full", "voll"),
+        RingMouse.HidPlusPlus.Features.ChargeState.NotCharging => L("on cable", "am Kabel"),
+        RingMouse.HidPlusPlus.Features.ChargeState.Error => L("charging error", "Ladefehler"),
+        RingMouse.HidPlusPlus.Features.ChargeState.Discharging => L("discharging", "entlädt"),
         _ => "?",
     };
 

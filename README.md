@@ -1,303 +1,346 @@
 # RingMouse
 
-Schlanker Ersatz für **Logi Options+** unter Windows 11: **Actions Ring** auf einer Maustaste (z. B. der
-DPI-Taste), **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer Tasten und **App-Profile**. Kein Treiber, keine Adminrechte, **keine Telemetrie, keine Netzwerkzugriffe**.
+A lightweight replacement for **Logi Options+** on Windows 11: an **Actions Ring** on a mouse button, the **battery
+level** in the tray with warnings, **DPI**, assignments for further buttons and **per-app profiles** – for Logitech mice.
+No driver, no admin rights, **no telemetry, no network access**.
 
-- Spricht HID++ 2.0 direkt mit der Maus (Bluetooth LE, USB oder Unifying/Bolt-Receiver).
-- Tasten werden per `REPROG_CONTROLS_V4` (0x1B04) umgeleitet. Die vorhandenen Tasten (CIDs) werden immer vom Gerät erfragt, nichts ist hartkodiert.
-- Umleitungen werden in folgenden Fällen neu gesetzt: nach Reconnect (0x1D4B), Standby, Entsperren, beim Wiederauftauchen des Geräts und wenn der Watchdog (alle 30 s) eine verlorene Umleitung findet.
-- Wird Abmelden oder Herunterfahren abgebrochen, startet RingMouse nach etwa 20 s von selbst wieder.
-- Die Konfiguration steht in einer JSON-Datei und wird bei Änderungen sofort neu geladen.
+🇩🇪 [Deutsche Fassung](README.de.md)
 
-**Unterstützte Mäuse:** Logitech-Mäuse mit HID++ 2.0, direkt per Bluetooth, über einen Bolt- oder Unifying-Empfänger oder
-per Kabel. Akku über `0x1004`, `0x1001` oder `0x1000`, DPI über `0x2201` oder `0x2202`. Getestet ist bisher die MX Vertical
-über Bluetooth; andere Modelle sollten funktionieren – Rückmeldungen sind willkommen (siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
+- Talks HID++ 2.0 directly to the mouse (Bluetooth LE, USB cable, or a Bolt/Unifying receiver).
+- Buttons are diverted via `REPROG_CONTROLS_V4` (0x1B04). The available buttons (CIDs) are always queried from the
+  device – nothing is hard-coded.
+- Diversions are re-applied after reconnects (0x1D4B), standby, unlocking, when the device reappears, and whenever the
+  watchdog (every 30 s) finds a lost diversion.
+- If signing out or shutting down is cancelled, RingMouse restarts itself after about 20 s.
+- The configuration is a JSON file and is reloaded immediately when it changes.
+- The user interface is available in English and German (follows the Windows display language, switchable).
+
+**Supported mice:** Logitech mice with HID++ 2.0 – directly via Bluetooth, through a Bolt or Unifying receiver, or by
+cable. Battery via `0x1004`, `0x1001` or `0x1000`, DPI via `0x2201` or `0x2202`. So far tested with the MX Vertical over
+Bluetooth; other models should work – feedback is welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ---
 
-## Inhalt
+## Contents
 
-1. [Schnellstart](#schnellstart)
-2. [Options+ ablösen](#options-ablösen)
-3. [Bedienung des Rings](#bedienung-des-rings)
-4. [Konfiguration](#konfiguration) · [Aktionstypen](#aktionstypen) · [Icons](#icons) · [Profile](#profile)
-5. [Akku & Tray](#akku--tray)
-6. [Fenster mit Adminrechten (UIPI / uiAccess)](#fenster-mit-adminrechten-uipi--uiaccess)
+1. [Installation](#installation)
+2. [Switching from Logi Options+](#switching-from-logi-options)
+3. [Using the ring](#using-the-ring)
+4. [Configuration](#configuration) · [Action types](#action-types) · [Icons](#icons) · [Profiles](#profiles)
+5. [Battery & tray](#battery--tray)
+6. [Windows with admin rights (UIPI / uiAccess)](#windows-with-admin-rights-uipi--uiaccess)
 7. [ringmouse-probe](#ringmouse-probe)
-8. [Testplan](#testplan)
-9. [Troubleshooting](#troubleshooting)
-10. [Bauen & Aufbau](#bauen--aufbau)
-11. [Lizenz](#lizenz)
+8. [Troubleshooting](#troubleshooting)
+9. [Privacy](#privacy)
+10. [Building from source](#building-from-source)
+11. [License](#license)
 
 ---
 
-## Schnellstart
+## Installation
 
-```powershell
-# einmalig bauen (braucht das .NET 10 SDK)
-.\build.ps1                       # Build + Tests + Publish
-# Ergebnis:
-#   publish\RingMouse\RingMouse.exe          – die App (eine Datei, self-contained)
-#   publish\probe\ringmouse-probe.exe        – Diagnosewerkzeug
-#   publish\RingMouse-uiAccess\              – Variante für Admin-Fenster (siehe unten)
-```
+1. Download `RingMouse.exe` from the latest [release](https://github.com/Tim-Schaller/RingMouse/releases/latest).
+   It is a single self-contained file – no .NET installation needed. The release also lists SHA-256 checksums.
+2. Copy it to a permanent folder, e.g. `%LOCALAPPDATA%\Programs\RingMouse\`, and start it.
+   The file is not code-signed, so Windows SmartScreen may warn on the first start (*More info* → *Run anyway*).
+3. On the first start RingMouse creates `%APPDATA%\RingMouse\config.json` with a default ring: 8 slots plus the
+   submenus *Media* and *Text*. As soon as your mouse is connected, the **first-run setup** asks for the ring button:
+   simply press the button on your mouse that should open the ring (e.g. a thumb, gesture or DPI button). You can change
+   it any time under Settings → *Buttons* → **Press button …**.
+4. Tray icon → **Settings** → *General* → **Start with Windows** → Save.
 
-1. `RingMouse.exe` an einen festen Ort kopieren, z.B. `%LOCALAPPDATA%\Programs\RingMouse\`, und starten.
-2. Beim ersten Start wird `%APPDATA%\RingMouse\config.json` mit einem Standard-Ring angelegt: 8 Plätze, Untermenüs *Medien* und *Text*. Sobald die Maus verbunden ist, fragt die **Ersteinrichtung** nach der Ring-Taste: einfach die gewünschte Taste an der Maus drücken (z. B. Daumen-, Gesten- oder DPI-Taste). Ändern geht jederzeit unter Einstellungen → *Tasten* → **Taste drücken …**.
-3. Tray-Symbol → **Einstellungen** → *Allgemein* → **Mit Windows starten** → Speichern.
+Updating: quit RingMouse (tray → *Exit*, or `RingMouse.exe --exit`), replace the file, start it again.
 
-## Options+ ablösen
+## Switching from Logi Options+
 
-Options+ und RingMouse streiten sich um dieselben Tasten. Options+ setzt seine Umleitungen bei jedem App-Wechsel neu und schaltet die „Analytics“-Meldungen für jeden Klick wieder ein.
+Options+ and RingMouse compete for the same buttons. Options+ re-applies its diversions on every app switch and turns the
+"analytics" reports for every click back on.
 
-1. Options+ beenden: Tray → Beenden, dann im Task-Manager `logioptionsplus_agent`, `logioptionsplus` und `LogiPluginService` beenden.
-2. RingMouse starten. Im Log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) sollte stehen:
-   `<Mausname> … konfiguriert … umgeleitet [0x…] Raw-XY [0x…]` mit der CID deiner Ring-Taste.
-3. Klappt alles: **Logi Options+** deinstallieren. Den **Logi Plugin Service** gleich mit entfernen, er ist der Unterbau des Actions Rings.
-4. Hat Options+ Tasten *dauerhaft* umgeleitet, zeigt `ringmouse-probe controls` bei diesen Tasten `PERSIST`. Zurücksetzen geht mit `ringmouse-probe reset`. RingMouse räumt fremde Umleitungen auf nicht belegten Tasten beim Start ohnehin selbst auf.
+1. Quit Options+: tray → Quit, then end `logioptionsplus_agent`, `logioptionsplus` and `LogiPluginService` in Task
+   Manager.
+2. Start RingMouse. The log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) should contain a line like
+   `<mouse name> configured … diverted [0x…] Raw-XY [0x…]` with the CID of your ring button.
+3. If everything works: uninstall **Logi Options+**. Remove the **Logi Plugin Service** as well – it is the basis of the
+   Options+ Actions Ring.
+4. If Options+ diverted buttons *persistently*, `ringmouse-probe controls` shows `PERSIST` for them. `ringmouse-probe
+   reset` resets them. RingMouse also clears foreign diversions on unassigned buttons at startup by itself.
 
-> Häufige Ursache, wenn der Options+-Ring nur manchmal aufgeht: App-Profile in Options+ (z. B. für Edge, Teams oder Office) belegen die Ring-Taste dort anders, etwa mit „Zeigergeschwindigkeit ändern“. RingMouse-Profile **erben** vom Standard und weichen nur dort ab, wo du es explizit einstellst.
+> A common reason why the Options+ ring only opens sometimes: app profiles in Options+ (e.g. for Edge, Teams or Office)
+> assign the ring button differently there, e.g. to "change pointer speed". RingMouse profiles **inherit** from the
+> default and only differ where you explicitly say so.
 
-## Bedienung des Rings
+## Using the ring
 
-| Modus (`ring.mode`) | Verhalten |
+| Mode (`ring.mode`) | Behavior |
 |---|---|
-| `hybrid` (Standard) | **Kurz tippen**: Ring bleibt offen, Klick aufs Segment führt aus. **Halten**: Richtung wählen, Loslassen führt aus. |
-| `hold` | Taste halten, Richtung wählen, Loslassen führt aus |
-| `tap` | Ring bleibt offen, Klick führt aus |
+| `hybrid` (default) | **Tap briefly**: the ring stays open, clicking a segment runs it. **Hold**: choose a direction, releasing runs it. |
+| `hold` | Hold the button, choose a direction, release to run |
+| `tap` | The ring stays open, a click runs the segment |
 
-- Die Auswahl läuft **über den Winkel**, nicht über einen Treffertest. Segment 1 liegt oben, weiter geht es im Uhrzeigersinn.
-- **Untermenüs beim Halten (Durchschieben):** Taste halten und Richtung Untermenü zeigen – das Segment wird markiert. Weiter nach außen schieben (über etwa 85 % des Radius) öffnet das Untermenü, die Taste bleibt gedrückt. Über dem gewünschten Eintrag loslassen führt ihn aus. Abschaltbar mit `ring.submenuPush: false`. Loslassen auf dem Untermenü-Segment öffnet es wie bisher zum Anklicken.
-- **Rückmeldung:** Das markierte Segment blendet weich in die Akzentfarbe und gleitet leicht nach außen, beim Durchschieben wandert es weiter hinaus. Steht der Zeiger beim Halten still (Raw-XY), zeigt ein Punkt die Bewegung, und der normale Mauszeiger ist so lange ausgeblendet (`ring.hideCursor`; er kommt beim Schließen, im Tippen-Modus und nach 5 s ohne Bewegung zurück, nach einem Absturz beim nächsten Start). Untermenüs zoomen herein und beim Zurückgehen wieder heraus, beim Ausführen leuchtet das Segment kurz auf und der Ring blendet aus. An Segmentgrenzen gibt es 5° Hysterese, damit die Markierung nicht flackert. `ring.animation: false` schaltet die Animationen ab.
-- **Mitte (Deadzone):** Loslassen oder Klicken dort bricht ab. Im Untermenü heißt die Mitte „Zurück“.
-- Weitere Wege zum Abbrechen: **Esc**, **Rechtsklick**, Klick außerhalb des Rings, **Taste erneut drücken** (im Tippen-Modus). **Rücktaste** führt eine Ebene zurück.
-- Kann die Taste **Raw-XY** (z. B. die DPI-Taste der MX Vertical; `ringmouse-probe controls` zeigt es je Taste), bleibt der Mauszeiger beim Halten stehen und die Richtung kommt direkt vom Sensor. Sonst wählt der Ring über die Zeigerbewegung.
-- Am Bildschirmrand wird der Ring in den sichtbaren Bereich geschoben. Danach springt der Zeiger an seine Ausgangsposition zurück (`ring.restoreCursor`).
-- Das Overlay aktiviert sich nie, der Fokus bleibt im Zielfenster. Die Aktion landet also dort, wo du gerade warst.
-- Hell/Dunkel folgt dem Windows-Modus, die Akzentfarbe ebenfalls. Der Ring ist Per-Monitor-DPI-korrekt.
-- **Aussehen anpassen** (Einstellungen → Ringe → „Aussehen des Rings“, mit Live-Vorschau):
-  - Größe (Radius). „Am Bildschirm ansehen“ zeigt den Ring kurz in echter Größe am Mauszeiger, denn die Vorschau im Fenster wird immer eingepasst.
-  - Symbole & Schrift in %. Zu lange Wörter werden automatisch kleiner, statt abgeschnitten zu werden.
-  - Farbschema, Ringfarbe, Markierungsfarbe und Deckkraft. Schrift und Abstufungen werden aus der Ringfarbe abgeleitet.
-  - Zeigerpunkt: Größe und Farbe.
-  - Farben gibt es als Farbfelder oder über „Eigene…“ (Windows-Farbdialog). In der Config stehen sie als `"#RRGGBB"`, leer bedeutet automatisch.
-- **Latenz:** Im Log steht bei jedem Öffnen `Ring sichtbar xx ms nach Tastendruck`. Gemessen: rund 24 ms vom HID-Event bis zum ersten Frame.
+- Selection works **by angle**, not by hit-testing. Segment 1 is at the top, the others follow clockwise.
+- **Submenus while holding (push-through):** hold the button and point towards a submenu – the segment is highlighted.
+  Pushing further out (beyond about 85 % of the radius) opens the submenu while the button stays pressed. Releasing over
+  the desired entry runs it. Disable with `ring.submenuPush: false`. Releasing on the submenu segment opens it for
+  clicking as before.
+- **Feedback:** the highlighted segment fades smoothly into the accent color and slides slightly outwards; while pushing
+  through it moves further out. If the pointer stands still while holding (Raw-XY), a dot shows the movement and the
+  normal mouse pointer is hidden meanwhile (`ring.hideCursor`; it comes back when the ring closes, in tap mode, after 5 s
+  without movement, and after a crash on the next start). Submenus zoom in and back out, a segment flashes briefly when it
+  runs and the ring fades out. Segment borders have 5° hysteresis so the highlight does not flicker. `ring.animation:
+  false` turns the animations off.
+- **Center (dead zone):** releasing or clicking there cancels. In a submenu the center means "Back".
+- Other ways to cancel: **Esc**, **right-click**, clicking outside the ring, **pressing the button again** (tap mode).
+  **Backspace** goes back one level.
+- If the button supports **Raw-XY** (e.g. the DPI button of the MX Vertical; `ringmouse-probe controls` shows it per
+  button), the pointer stands still while holding and the direction comes straight from the sensor. Otherwise the ring
+  follows the pointer movement.
+- Near the screen edge the ring is moved into the visible area; afterwards the pointer jumps back to where it was
+  (`ring.restoreCursor`).
+- The overlay never takes the focus, so the action lands in the window you were just using.
+- Light/dark and the accent color follow Windows. The ring is per-monitor DPI aware.
+- **Appearance** (Settings → Rings → "Ring appearance", with live preview):
+  - Size (radius). "Show on screen" briefly shows the ring at its real size at the pointer, because the preview in the
+    window is always scaled to fit.
+  - Icons & text in %. Words that are too long get smaller automatically instead of being cut off.
+  - Color scheme, ring color, highlight color and opacity. Text and shades are derived from the ring color.
+  - Pointer dot: size and color.
+  - Colors come from swatches or "Custom…" (Windows color dialog). In the config they are `"#RRGGBB"`; empty means
+    automatic.
+- **Latency:** each time the ring opens the log notes `Ring visible xx ms after button press`. Measured: about 24 ms from
+  the HID event to the first frame.
 
-## Konfiguration
+## Configuration
 
-**Datei:** `%APPDATA%\RingMouse\config.json`. Daneben liegt `config.schema.json`, damit VS Code beim Tippen Vorschläge macht und prüft.
-- Kommentare (`//`) und abschließende Kommas sind erlaubt.
-- Änderungen werden **sofort** übernommen.
-- Bei einem Fehler bleibt die letzte gültige Config aktiv. Eine Tray-Meldung nennt die Zeile.
-- Das Einstellungsfenster schreibt dieselbe Datei. Beim Speichern aus dem Fenster gehen Kommentare verloren.
+**File:** `%APPDATA%\RingMouse\config.json`. Next to it, `config.schema.json` gives editors such as VS Code completion and
+validation.
+- Comments (`//`) and trailing commas are allowed.
+- Changes take effect **immediately**.
+- If the file has an error, the last valid configuration stays active and a tray message names the line.
+- The settings window writes the same file. Saving from the window drops comments.
 
 ```jsonc
 {
   "$schema": "./config.schema.json",
   "general": {
+    "language": "auto",                 // auto | english | german
     "autostart": "run",                 // off | run | task
     "warnIfOptionsPlusRunning": true,
-    "disableAnalyticsReporting": true,  // Options+-„Klick-Tracking" der Maus abschalten
+    "disableAnalyticsReporting": true,  // turn off the mouse's Options+ "click tracking"
     "logLevel": "Information"
   },
   "ring": {
     "mode": "hybrid", "radius": 150, "deadzone": 26, "tapThresholdMs": 350, "submenuPush": true, "hideCursor": true,
     "animation": true, "restoreCursor": true, "useRawXY": "auto", "rawXYScale": 0.6,
     "theme": "system", "showLabels": true, "autoCloseSeconds": 8,
-    "ringColor": null, "accentColor": null, "opacity": 100, "textScale": 100,   // null = automatisch, sonst "#RRGGBB"
+    "ringColor": null, "accentColor": null, "opacity": 100, "textScale": 100,   // null = automatic, otherwise "#RRGGBB"
     "pointerColor": null, "pointerSize": 9
   },
-  "buttons": {                          // CID → Aktion (CIDs: Einstellungen → Tasten oder ringmouse-probe controls)
-    "0x00FD": { "type": "ring", "ring": "main" }   // legt die Ersteinrichtung für die gedrückte Taste an
+  "buttons": {                          // CID → action (CIDs: Settings → Buttons, or ringmouse-probe controls)
+    "0x00FD": { "type": "ring", "ring": "main" }   // created by the first-run setup for the button you pressed
   },
   "rings": {
     "main": { "segments": [
-      { "label": "Wiedergabe/Pause", "icon": "PlayPause",  "action": { "type": "media", "key": "playPause" } },
-      { "label": "Emoji",            "icon": "Emoji",      "action": { "type": "system", "command": "emojiPanel" } },
-      { "label": "Medien",           "icon": "Music",      "action": { "type": "submenu", "ring": "media" } },
-      { "label": "Sperren",          "icon": "Lock",       "action": { "type": "system", "command": "lock" } },
-      { "label": "Text",             "icon": "Edit",       "action": { "type": "submenu", "ring": "text" } },
-      { "label": "Bildschirmfoto",   "icon": "Screenshot", "action": { "type": "screenshot" } },
-      null,                                              // leerer Platz
-      { "label": "Explorer",         "icon": "Folder",     "action": { "type": "launch", "target": "explorer.exe" } }
+      { "label": "Play/Pause",  "icon": "PlayPause",  "action": { "type": "media", "key": "playPause" } },
+      { "label": "Emoji",       "icon": "Emoji",      "action": { "type": "system", "command": "emojiPanel" } },
+      { "label": "Media",       "icon": "Music",      "action": { "type": "submenu", "ring": "media" } },
+      { "label": "Lock",        "icon": "Lock",       "action": { "type": "system", "command": "lock" } },
+      { "label": "Text",        "icon": "Edit",       "action": { "type": "submenu", "ring": "text" } },
+      { "label": "Screenshot",  "icon": "Screenshot", "action": { "type": "screenshot" } },
+      null,                                         // empty slot
+      { "label": "Explorer",    "icon": "Folder",     "action": { "type": "launch", "target": "explorer.exe" } }
     ] },
     "text": { "title": "Text", "segments": [
-      { "label": "Erledigt", "icon": "Check", "action": { "type": "snippet", "text": "Erledigt {now:dd.MM.yyyy HH:mm}" } },
-      { "label": "Grüße",    "icon": "Mail",  "action": { "type": "snippet", "text": "Viele Grüße{newline}{user}" } }
+      { "label": "Done",    "icon": "Check", "action": { "type": "snippet", "text": "Done {now:yyyy-MM-dd HH:mm}" } },
+      { "label": "Regards", "icon": "Mail",  "action": { "type": "snippet", "text": "Best regards{newline}{user}" } }
     ] }
   },
   "profiles": [
     { "name": "Excel", "processes": ["excel.exe"],
-      "buttons": { "0x0053": { "type": "keys", "keys": "Ctrl+Z" } },   // Zurück = Rückgängig, nur in Excel
-      "rings":   { "main": "main-excel" } }                           // eigener Ring in Excel
+      "buttons": { "0x0053": { "type": "keys", "keys": "Ctrl+Z" } },   // Back = Undo, only in Excel
+      "rings":   { "main": "main-excel" } }                           // a separate ring in Excel
   ],
   "devices": {
     "*":           { },
-    "MX Vertical": { "dpi": 1000 }      // wird nach jedem Reconnect erneut gesetzt
+    "MX Vertical": { "dpi": 1000 }      // re-applied after every reconnect
   },
   "battery": { "thresholds": [20, 10, 5], "notifyCharged": true, "pollMinutes": 10, "trayDevice": null },
   "debug": { "rawHidLog": false, "logRingLatency": true }
 }
 ```
 
-### Aktionstypen
+### Action types
 
-| `type` | Felder | Hinweis |
+| `type` | Fields | Notes |
 |---|---|---|
-| `ring` | `ring` | nur als Tastenbelegung: öffnet einen Ring |
-| `submenu` | `ring` | nur im Ring: Untermenü an derselben Stelle |
-| `keys` | `keys` | `Ctrl+Shift+S`, `Win+.`, `Alt+F4`, Folge `Ctrl+K, Ctrl+C`. Deutsche Namen erlaubt (Strg, Entf, Pos1 …), Zeichentasten richten sich nach dem aktiven Layout |
+| `ring` | `ring` | only as a button assignment: opens a ring |
+| `submenu` | `ring` | only inside a ring: submenu in the same place |
+| `keys` | `keys` | `Ctrl+Shift+S`, `Win+.`, `Alt+F4`, sequence `Ctrl+K, Ctrl+C`. German key names are accepted too (Strg, Entf, Pos1 …); character keys follow the active keyboard layout |
 | `media` | `key` | `playPause`, `next`, `previous`, `stop`, `volumeUp`, `volumeDown`, `mute` |
-| `launch` | `target`, `arguments`, `workingDirectory`, `elevated` | Pfad, Datei, Ordner, URL, URI (`ms-settings:`, `spotify:…`), `shell:AppsFolder\<AUMID>` |
-| `snippet` | `text`, `mode` (`type`/`paste`) | Platzhalter `{now:dd.MM.yyyy HH:mm}`, `{date}`, `{time}`, `{clipboard}`, `{user}`, `{computer}`, `{newline}` |
-| `powershell` | `script` **oder** `command`, `arguments`, `hidden`, `usePwsh`, `elevated` | Befehle laufen über `-EncodedCommand` (keine Quoting-Probleme) |
-| `screenshot` | – | Snipping-Tool-Auswahl (`ms-screenclip:`), Fallback Win+Shift+S |
-| `system` | `command` | `lock` (LockWorkStation – Win+L ist per SendInput nicht möglich), `emojiPanel`, `showDesktop`, `taskView`, `clipboardHistory`, `monitorOff`, `openSettings` |
-| `dpi` | `values` | ein Wert = setzen, mehrere = durchschalten, z.B. `[1000, 2000]`. Ersetzt die DPI-Funktion der umgeleiteten DPI-Taste |
-| `appKeys` | `process`, `keys`, `restoreFocus`, `launchIfNotRunning` | Hotkey an eine bestimmte App: Fenster kurz aktivieren, senden, Fokus zurück |
-| `mouse` | `button` | `left`, `right`, `middle`, `back`, `forward`. Als Tastenbelegung wird die Taste gedrückt gehalten wie die physische |
-| `sequence` | `steps` | mehrere Aktionen, dazwischen `{ "type": "delay", "ms": 300 }` |
-| `native` | – | Originalfunktion (Taste nicht umleiten) |
-| `none` | – | Taste deaktivieren |
+| `launch` | `target`, `arguments`, `workingDirectory`, `elevated` | path, file, folder, URL, URI (`ms-settings:`, `spotify:…`), `shell:AppsFolder\<AUMID>` |
+| `snippet` | `text`, `mode` (`type`/`paste`) | placeholders `{now:yyyy-MM-dd HH:mm}`, `{date}`, `{time}`, `{clipboard}`, `{user}`, `{computer}`, `{newline}` |
+| `powershell` | `script` **or** `command`, `arguments`, `hidden`, `usePwsh`, `elevated` | commands run via `-EncodedCommand` (no quoting problems) |
+| `screenshot` | – | Snipping Tool selection (`ms-screenclip:`), fallback Win+Shift+S |
+| `system` | `command` | `lock` (LockWorkStation – Win+L cannot be sent via SendInput), `emojiPanel`, `showDesktop`, `taskView`, `clipboardHistory`, `monitorOff`, `openSettings` |
+| `dpi` | `values` | one value = set, several = cycle, e.g. `[1000, 2000]`. Replaces the DPI function of a diverted DPI button |
+| `appKeys` | `process`, `keys`, `restoreFocus`, `launchIfNotRunning` | hotkey for a specific app: briefly activate its window, send, return the focus |
+| `mouse` | `button` | `left`, `right`, `middle`, `back`, `forward`. As a button assignment the button is held down like the physical one |
+| `sequence` | `steps` | several actions, with `{ "type": "delay", "ms": 300 }` in between |
+| `native` | – | native function (do not divert the button) |
+| `none` | – | disable the button |
 
-**Programme starten ohne Adminrechte:** Läuft RingMouse selbst mit Adminrechten, startet es Programme trotzdem über die Explorer-Shell ohne Adminrechte. Das gilt nicht, wenn `"elevated": true` gesetzt ist.
+**Launching without admin rights:** if RingMouse itself runs elevated, it still launches programs through the Explorer
+shell without admin rights – unless `"elevated": true` is set.
 
-**Spotify ohne Web-API:** Options+ steuert Spotify über die Web-API mit Internet und Login. Mit `appKeys` geht es lokal: Desktop-Hotkeys an das Spotify-Fenster, z. B. `Ctrl+S` Zufall, `Ctrl+R` Wiederholen, `Alt+Shift+B` Gefällt mir. Eine Playlist öffnet `launch` mit ihrer `spotify:playlist:…`-URI; Abspielen musst du selbst starten.
+**Spotify without the Web API:** Options+ controls Spotify through the Web API (internet and login). With `appKeys` it
+works locally: desktop hotkeys sent to the Spotify window, e.g. `Ctrl+S` shuffle, `Ctrl+R` repeat, `Alt+Shift+B` like. A
+playlist opens via `launch` with its `spotify:playlist:…` URI; you start playback yourself.
 
 ### Icons
 
-- **Symbolnamen** (Segoe Fluent Icons): `PlayPause Pause Stop Next Previous Volume VolumeUp VolumeDown Mute Emoji Music Album Lock Ticket Tag Screenshot Camera Photo Folder FolderOpen Explorer Shuffle Repeat RepeatOne Heart HeartFill Playlist List Clock Recent Timer Check CheckMark Save Refresh Sync Back Forward Cancel Settings Globe Terminal Keyboard Mouse Mail Copy Paste Cut Undo Redo Search Calendar Star Link Edit Delete Add Phone People Microphone Video Monitor Desktop TaskView Power Brightness Home Pin Flag Warning Info Code Dpi Headphones Chat Print Share Download Upload Cloud Bluetooth Battery Help Zoom FullScreen Clipboard Laptop Shield Document`
-- **Eigene Icons:**
-  - `glyph:E72E` für einen beliebigen Codepoint
-  - `file:C:\pfad\bild.png` für eine PNG-, ICO- oder JPG-Datei
-  - `exe:C:\pfad\app.exe` für das Programmicon
-  - `text:AB` für bis zu 3 Zeichen
-- **Ohne Angabe:** RingMouse wählt ein Icon passend zur Aktion. Bei `launch` ist das automatisch das Programmicon.
+- **Symbol names** (Segoe Fluent Icons): `PlayPause Pause Stop Next Previous Volume VolumeUp VolumeDown Mute Emoji Music Album Lock Ticket Tag Screenshot Camera Photo Folder FolderOpen Explorer Shuffle Repeat RepeatOne Heart HeartFill Playlist List Clock Recent Timer Check CheckMark Save Refresh Sync Back Forward Cancel Settings Globe Web Terminal PowerShell Keyboard Mouse Mail Copy Paste Cut Undo Redo Search Calendar Star Link Edit Delete Add Phone People Microphone Video Monitor Desktop TaskView Power Brightness Home Pin Flag Warning Info Code Dpi Speed Headphones Chat Print Share Download Upload Cloud Bluetooth Battery Help Zoom FullScreen Clipboard Laptop Shield Document ChevronRight`
+- **Custom icons:**
+  - `glyph:E72E` for any code point
+  - `file:C:\path\image.png` for a PNG, ICO or JPG file
+  - `exe:C:\path\app.exe` for the program icon
+  - `text:AB` for up to 3 characters
+- **Without an icon:** RingMouse picks one that matches the action. For `launch` it is the program's icon.
 
-### Profile
+### Profiles
 
-- Das **erste** passende Profil gewinnt. Maßgeblich ist der Prozessname des Vordergrundfensters, z.B. `excel.exe`; Platzhalter `*` und `?` sind erlaubt.
-- Ein Profil überschreibt nur, was darin steht: einzelne `buttons` und/oder `rings` (Ringname → anderer Ring).
-- Alles andere kommt aus dem Standard.
-- Tasten, die nur in einem Profil belegt sind, werden trotzdem überall umgeleitet. In den anderen Apps bildet RingMouse die Originalfunktion nach (Zurück/Vor/Mitte).
+- The **first** matching profile wins. What counts is the process name of the foreground window, e.g. `excel.exe`; the
+  wildcards `*` and `?` are allowed.
+- A profile only overrides what it contains: single `buttons` and/or `rings` (ring name → another ring).
+- Everything else comes from the default.
+- Buttons that are only assigned in a profile are still diverted everywhere. In other apps RingMouse emulates their
+  native function (back/forward/middle).
 
-## Akku & Tray
+## Battery & tray
 
-- **Tray-Symbol:** der Akkustand als Zahl in einem Ring. Der Ring ist das Erkennungszeichen von RingMouse (zur Unterscheidung von anderen Prozentanzeigen, z.B. MagicPods) und zeigt den Füllstand als Bogen ab 12 Uhr.
-  - weiß bzw. schwarz passend zur Taskleiste, ab 20 % orange, ab 10 % rot
-  - grün beim Laden bzw. am Kabel, Häkchen bei 100 %
-  - grau, wenn die Maus nicht erreichbar ist (letzter bekannter Stand)
-  - „?“ ohne Wert
-- **Tooltip:** z.B. `MX Vertical: 64 % · entlädt · Bluetooth LE`. Schläft die Maus, steht dort der zuletzt bekannte Stand mit Uhrzeit.
-- **Warnungen** bei 20, 10 und 5 %: jede Schwelle einmal pro Entladezyklus. Sie wird erst wieder aktiv, wenn geladen wird oder der Stand um 5 Punkte darüber steigt. Dazu kommt „Aufladen abgeschlossen“. Unter Windows 11 erscheinen die Meldungen als normale Benachrichtigungen.
-- **Quelle:** `0x1004 UNIFIED_BATTERY`, sonst `0x1001 BATTERY_VOLTAGE` mit eigener, per `battery.voltageCurve` einstellbarer Li-Ion-Kurve, sonst `0x1000`. Die MX Vertical meldet über `0x1000` Stufenwerte.
-- **Aktualisierung:** über Events der Maus, zusätzlich eine Abfrage alle `pollMinutes`. Der letzte Stand liegt in `%APPDATA%\RingMouse\state.json`.
+- **Tray icon:** the battery level as a number inside a ring. The ring identifies RingMouse (to tell it apart from other
+  percentage icons, e.g. MagicPods) and shows the level as an arc starting at 12 o'clock.
+  - white or black to match the taskbar, orange below 20 %, red below 10 %
+  - green while charging or on cable, a check mark at 100 %
+  - gray if the mouse cannot be reached (last known level)
+  - "?" without a value
+- **Tooltip:** e.g. `MX Vertical: 64 % · discharging · Bluetooth LE`. While the mouse sleeps it shows the last known level
+  with its time.
+- **Warnings** at 20, 10 and 5 %: each threshold once per discharge cycle. It re-arms when charging or when the level
+  rises 5 points above it. Plus "charging complete". On Windows 11 they appear as normal notifications.
+- **Source:** `0x1004 UNIFIED_BATTERY`, otherwise `0x1001 BATTERY_VOLTAGE` with a Li-ion curve that can be adjusted via
+  `battery.voltageCurve`, otherwise `0x1000`. The MX Vertical reports level steps via `0x1000`.
+- **Updates:** via events from the mouse plus a query every `pollMinutes`. The last level is kept in
+  `%APPDATA%\RingMouse\state.json`.
 
-## Fenster mit Adminrechten (UIPI / uiAccess)
+## Windows with admin rights (UIPI / uiAccess)
 
-Windows lässt einen normalen Prozess keine Eingaben an Fenster mit höheren Rechten senden (UIPI). Low-Level-Hooks sehen dort auch keine Klicks. RingMouse **erkennt und protokolliert** das und zeigt einmal pro Programm eine Meldung. Der Ring öffnet sich trotzdem, arbeitet in dem Fall aber nur im Halten-Modus.
+Windows does not let a normal process send input to windows with higher rights (UIPI), and low-level hooks do not see
+clicks there either. RingMouse **detects and logs** this and shows a message once per program. The ring still opens, but
+only works in hold mode in that case.
 
-| Setup | Lösung |
+| Setup | Solution |
 |---|---|
-| Konto ist Administrator (UAC mit „Ja“) | Autostart „**Aufgabe mit höchsten Privilegien**“ in den Einstellungen. Die Aufgabe läuft mit normaler Priorität und ohne Laufzeitlimit. |
-| **Standardbenutzer + separates Admin-Konto** | „Höchste Privilegien“ bringt nichts, weil Admin-Fenster unter dem anderen Konto laufen. Lösung ist die **uiAccess-Installation**. |
+| Your account is an administrator (UAC with "Yes") | Autostart "**scheduled task with highest privileges**" in the settings. The task runs with normal priority and without a time limit. |
+| **Standard user + separate admin account** | "Highest privileges" does not help, because admin windows run under the other account. The solution is the **uiAccess installation**. |
 
-**uiAccess-Installation:** Die Exe wird signiert und nach `C:\Program Files\RingMouse` gelegt. Sie läuft dann ohne Adminrechte und darf trotzdem Admin-Fenster bedienen.
+**uiAccess installation:** the exe is signed and placed in `C:\Program Files\RingMouse`. It then runs without admin
+rights but may still operate admin windows. Use `RingMouse-uiAccess.zip` from the release (or build it yourself with
+`.\build.ps1 -Target Publish`), then run as administrator:
 
 ```powershell
-.\build.ps1 -Target Publish
-# als Administrator:
-Start-Process powershell -Verb RunAs -ArgumentList '-ExecutionPolicy Bypass -File "<Pfad>\tools\install-uiaccess.ps1"'
+Start-Process powershell -Verb RunAs -ArgumentList '-ExecutionPolicy Bypass -File "<path>\tools\install-uiaccess.ps1"'
 ```
 
-Das Skript erzeugt ein lokales Codesignatur-Zertifikat, das nicht exportierbar ist und nur diesem Rechner vertraut wird. Alternativ übergibst du mit `-Thumbprint` eines aus eurer PKI. Anschließend kopiert und signiert es die App. Danach RingMouse aus `C:\Program Files\RingMouse` starten und *Mit Windows starten* aktivieren. Unter Einstellungen → Allgemein → Info steht dann „uiAccess ja“.
+The script creates a local code-signing certificate that cannot be exported and is only trusted on this computer.
+Alternatively pass one from your own PKI with `-Thumbprint`. It then copies and signs the app. Afterwards start RingMouse
+from `C:\Program Files\RingMouse` and enable *Start with Windows*. Settings → General → Info then shows "uiAccess yes".
 
 ## ringmouse-probe
 
-Diagnosewerkzeug für die Konsole. Es braucht keine Adminrechte und liest nur, außer bei `live` und `reset`.
+A console diagnostic tool. It needs no admin rights and only reads, except for `live` and `reset`.
 
 ```text
-ringmouse-probe list                     alle Logitech-HID-Collections: Usage Page/Usage, Report-IDs, HID++, BLE/USB/Receiver
+ringmouse-probe list                     all Logitech HID collections: usage page/usage, report IDs, HID++, BLE/USB/receiver
 ringmouse-probe info | features | controls | battery | dpi [--set N] | dump
-ringmouse-probe live --cid 0x00FD [--rawxy] | --all     Taste umleiten, Events roh + dekodiert (Strg+C stellt wieder her)
-ringmouse-probe monitor                  nur mitlesen (zeigt auch fremde Software wie Options+)
-ringmouse-probe watch [--cid 0x00FD] [--takeover]       DeviceService wie in der App: Reconnect/Standby/Watchdog live
-ringmouse-probe reset [--cid ..]         Umleitungen/Remaps/Analytics auf nativ
-Optionen: --device <n|PID>  --index <1-6>  --swid <1-15>  --raw  --record frames.jsonl  --duration <s>  --timeout <ms>
+ringmouse-probe live --cid 0x00FD [--rawxy] | --all     divert a button, show raw + decoded events (Ctrl+C restores)
+ringmouse-probe monitor                  listen only (also shows other software such as Options+)
+ringmouse-probe watch [--cid 0x00FD] [--takeover]       DeviceService as in the app: reconnect/standby/watchdog live
+ringmouse-probe reset [--cid ..]         diversions/remaps/analytics back to native
+Options: --device <n|PID>  --index <1-6>  --swid <1-15>  --raw  --record frames.jsonl  --duration <s>  --timeout <ms>
 ```
 
-Beispiel – Befunde an einer MX Vertical über Bluetooth:
-- Verbindung über **BLE**, PID `B020`, HID++ 4.5.
-- Die HID++-Collection ist `COL02` mit **Usage Page 0xFF43 / Usage 0x0202**. Unter BLE gibt es nur Long Reports `0x11`, nicht `0xFF00`.
-- Tasten: `0x0050` und `0x0051` sind nicht umleitbar. `0x0052`, `0x0053`, `0x0056` und `0x00FD` (DPI Switch) sind umleitbar, jeweils auch mit Raw-XY. `0x00D7` ist eine virtuelle Taste.
-- Akku über `0x1000`, DPI 400–4000 in 100er-Schritten.
-
-## Testplan
-
-Diese Punkte bitte einmal durchgehen. Options+ vorher beenden (siehe oben).
-
-| # | Test | Erwartung |
-|---|---|---|
-| 1 | `ringmouse-probe list`, `dump` | Maus wird gefunden, Features, Tasten und Akku werden angezeigt |
-| 2 | `ringmouse-probe live --cid <CID> --rawxy` und die Taste drücken/halten/bewegen | `GEDRÜCKT`/`losgelassen` erscheinen, beim Halten Raw-XY-Summen; nach Strg+C steht die Taste wieder auf „wiederhergestellt“ |
-| 3 | `ringmouse-probe watch --cid <CID> --rawxy --takeover`, dann Maus aus/an, Bluetooth aus/an, Standby, Sperren/Entsperren | Es folgen `nicht erreichbar` → `Wireless-Status reconnect` → `konfiguriert (Reconnect …)`; die Taste funktioniert danach sofort wieder |
-| 4 | RingMouse zum ersten Mal starten | Die Ersteinrichtung fragt nach der Ring-Taste; nach dem Drücken steht „Fertig!“ |
-| 5 | Ring-Taste **kurz tippen** | Ring bleibt offen, Klick auf „Emoji“ öffnet das Emoji-Panel im vorherigen Fenster |
-| 5b | Ring-Taste **halten**, Richtung wählen, loslassen | Die Aktion wird ausgeführt; mit Raw-XY steht der Zeiger dabei still |
-| 6 | Untermenü *Text* → *Datum* in Notepad/Browser | Das heutige Datum wird eingefügt |
-| 7 | Untermenü *Medien* → *Lauter*/*Nächster Titel* bei laufender Musik | Lautstärke bzw. Titel ändern sich, der Fokus bleibt im Fenster |
-| 8 | Ring am Bildschirmrand und auf dem zweiten Monitor öffnen | Ring bleibt komplett sichtbar und ist scharf |
-| 9 | PowerShell **als Admin** im Vordergrund, dann Ring mit einem Textbaustein | Ohne uiAccess: Tray-Hinweis und Logeintrag (UIPI). Mit uiAccess: der Text kommt an |
-| 10 | Akku: Maus laden | Blitz im Tray, am Ende „Aufladen abgeschlossen“ |
-| 11 | `config.json` ändern (z.B. `"radius": 180`) und speichern | Wird sofort übernommen; Tippfehler ergeben eine Tray-Meldung mit Zeile, die alte Config bleibt aktiv |
-| 12 | Tray → Beenden | Die Ring-Taste hat wieder ihre Originalfunktion (z. B. DPI umschalten) |
-
-Das Log liegt unter `%APPDATA%\RingMouse\logs\ringmouse-*.log`. Bei Problemen im Tray **Raw-HID++-Log** einschalten und `hidpp-*.log` ansehen.
+Example – findings for an MX Vertical over Bluetooth:
+- Connected via **BLE**, PID `B020`, HID++ 4.5.
+- The HID++ collection is `COL02` with **usage page 0xFF43 / usage 0x0202**. Over BLE there are only long reports
+  `0x11`, not `0xFF00`.
+- Buttons: `0x0050` and `0x0051` cannot be diverted. `0x0052`, `0x0053`, `0x0056` and `0x00FD` (DPI switch) can, each
+  with Raw-XY. `0x00D7` is a virtual button.
+- Battery via `0x1000`, DPI 400–4000 in steps of 100.
 
 ## Troubleshooting
 
-| Problem | Ursache / Lösung |
+| Problem | Cause / solution |
 |---|---|
-| Ring öffnet nicht | Ist eine Ring-Taste belegt (Einstellungen → Tasten)? Läuft Options+? Siehe Tray-Tooltip bzw. Log: dort nach `umgeleitet [0x…]` mit der CID der Taste suchen. Gegenprobe mit `ringmouse-probe live --cid <CID>` |
-| Taste ohne Funktion nach einem Absturz | Die temporäre Umleitung ist noch aktiv. Maus kurz aus- und einschalten oder `ringmouse-probe reset`. Ein Neustart von RingMouse setzt sie ebenfalls neu |
-| Nach dem Aufwachen braucht der erste Druck einen Moment | BLE verbindet sich neu. RingMouse konfiguriert die Maus nach `0x1D4B`, nach Standby-Ende (+2/+6/+15 s) und per Watchdog |
-| Akku zeigt „?“ oder grau | Die Maus schläft und hat noch keinen Wert geliefert. Den letzten Stand zeigt der Tooltip |
-| Aktion kommt im Admin-Fenster nicht an | UIPI, siehe [uiAccess](#fenster-mit-adminrechten-uipi--uiaccess) |
-| Textbaustein kommt in RDP/Citrix verstümmelt an | `"mode": "paste"` verwenden |
-| App-Hotkeys (`appKeys`) ohne Wirkung | Die App muss mit Fenster laufen. Ist sie nur im Tray minimiert, wird sie kurz geöffnet. Bei Spotify lassen sich Hotkeys nicht global setzen |
-| `config.json` kaputt | Die alte Config bleibt aktiv. Die Tray-Meldung nennt die Zeile; der Editor zeigt mit `config.schema.json` den Fehler |
-| Autostart „Aufgabe“ bringt nichts | Die höheren Rechte wirken nur für Admin-Konten, siehe oben. Die Aufgabe startet aber auch beim **Entsperren**, falls RingMouse nicht läuft (ab dieser Version; ältere Aufgaben einmal in den Einstellungen neu setzen, dafür fragt die UAC einmal nach einem Admin-Konto). Der Run-Eintrag startet nur bei der Anmeldung |
-| Ring reagiert nach Standby/Bluetooth-Abbruch nicht mehr | Ein eigener Wächter-Thread erkennt eine hängende Geräteverwaltung nach 45 s, bricht den Schritt ab und startet sie notfalls neu. Im Log stehen dann `Geräteverwaltung hängt … bei „Schritt“`, alle 10 min `Kein Logitech-HID++-Gerät verbunden – Scan sieht: …` und alle 30 min eine Statuszeile |
-| RingMouse reagiert nicht (Windows meldet „keine Rückmeldung“) | Der UI-Wächter schreibt `UI-Thread reagiert seit … nicht (Schritt: …)` ins Log – bitte diese Zeile melden |
+| The ring does not open | Is a ring button assigned (Settings → Buttons)? Is Options+ running? See the tray tooltip or the log: look for `diverted [0x…]` with the button's CID. Cross-check with `ringmouse-probe live --cid <CID>` |
+| A button does nothing after a crash | The temporary diversion is still active. Switch the mouse off and on, or run `ringmouse-probe reset`. Restarting RingMouse sets it again as well |
+| After waking up, the first press takes a moment | BLE reconnects. RingMouse configures the mouse after `0x1D4B`, after standby ends (+2/+6/+15 s) and via the watchdog |
+| Battery shows "?" or gray | The mouse sleeps and has not reported a value yet. The tooltip shows the last level |
+| An action does not reach an admin window | UIPI, see [uiAccess](#windows-with-admin-rights-uipi--uiaccess) |
+| A text snippet arrives garbled in RDP/Citrix | Use `"mode": "paste"` |
+| App hotkeys (`appKeys`) have no effect | The app must run with a window. If it is only minimized to the tray, it is opened briefly. Spotify hotkeys cannot be made global |
+| `config.json` is broken | The previous configuration stays active. The tray message names the line; with `config.schema.json` your editor shows the error |
+| Autostart "task" does not help | The higher rights only apply to admin accounts, see above. The task also starts RingMouse on **unlock** if it is not running (tasks created by older versions: set them again once in the settings – UAC asks for an admin account). The Run entry only starts at sign-in |
+| The ring stops reacting after standby/Bluetooth dropouts | A separate watchdog thread detects a stuck device service after 45 s, cancels the step and restarts it if needed. The log then shows `Device management stuck for … s at "<step>"`, every 10 min a line about missing Logitech devices and every 30 min a status line |
+| RingMouse does not respond (Windows says "not responding") | The UI watchdog writes `UI thread not responding for … (step: …)` to the log – please report that line |
 
-## Bauen & Aufbau
+## Privacy
+
+RingMouse has no telemetry and makes no network connections. Everything stays on your computer:
+- `%APPDATA%\RingMouse\` – `config.json`, `config.schema.json`, `state.json` (last battery levels), `logs\`
+- `%LOCALAPPDATA%\RingMouse\startup.log` – a small start-up trace
+
+Logs and `ringmouse-probe dump` recordings contain technical device data such as the unit ID of your mouse. Check them
+before you share them in a bug report.
+
+## Building from source
+
+```powershell
+.\build.ps1                       # build + tests + publish (needs the .NET 10 SDK)
+# Result:
+#   publish\RingMouse\RingMouse.exe          – the app (single file, self-contained)
+#   publish\probe\ringmouse-probe.exe        – diagnostic tool
+#   publish\RingMouse-uiAccess\              – variant for admin windows (see above)
+```
 
 ```
-src/RingMouse.HidPlusPlus   HID++-Protokoll (Framing, Matching, Features 0x0000/0001/0003/0005/1000/1001/1004/1B04/1D4B/2201/2202,
-                            Receiver-Register) + schlanker Win32-HID-Transport (hid.dll/cfgmgr32, Overlapped-I/O). Keine Pakete.
-src/RingMouse.Core          Config (Modell, JSON, Schema, Validierung, Hot-Reload), Ring-Geometrie + Zustandsautomat,
-                            Profile, Akku-Schwellen, Tastenkürzel-Parser, Textbausteine
-src/RingMouse.Platform      Win32: SendInput, Low-Level-Hooks, Vordergrund/Elevation, Start ohne Adminrechte, Zwischenablage,
-                            Autostart (Run/Aufgabe), Monitore/DPI, Theme
-src/RingMouse.Device        DeviceService: Erkennung, Lebenszyklus, Umleitung, Watchdog, Akku, DPI, Receiver
-src/RingMouse.Actions       Aktions-Engine (eigener STA-Thread)
-src/RingMouse.App           WPF-Tray-App: Ring-Overlay, Tray, Einstellungen, Logging (Serilog)
+src/RingMouse.HidPlusPlus   HID++ protocol (framing, matching, features 0x0000/0001/0003/0005/1000/1001/1004/1B04/1D4B/2201/2202,
+                            receiver registers) + a lean Win32 HID transport (hid.dll/cfgmgr32, overlapped I/O). No packages.
+src/RingMouse.Core          configuration (model, JSON, schema, validation, hot reload), ring geometry + state machine,
+                            profiles, battery thresholds, keyboard shortcut parser, text snippets, localization
+src/RingMouse.Platform      Win32: SendInput, low-level hooks, foreground/elevation, launching without admin rights,
+                            clipboard, autostart (Run/task), monitors/DPI, theme
+src/RingMouse.Device        DeviceService: discovery, life cycle, diversion, button detection, watchdog, battery, DPI, receivers
+src/RingMouse.Actions       action engine (own STA thread)
+src/RingMouse.App           WPF tray app: ring overlay, tray, settings, first-run setup, logging (Serilog)
 tools/RingMouse.Probe       ringmouse-probe
-tests/…                     Unit-Tests: Protokoll (inkl. abgespielter echter MX-Vertical-Frames), Core, DeviceService-Simulator
+tests/…                     unit tests: protocol (incl. replayed real MX Vertical frames), core, DeviceService simulator
 ```
 
 - `.\build.ps1 [-Target Build|Test|Publish|All]`
-- .NET 10 (LTS bis 11/2028), self-contained, win-x64. CLI-Telemetrie des SDK ist im Skript abgeschaltet.
-- `RingMouse.exe --exit` beendet eine laufende Instanz sauber (wie Tray → Beenden, Umleitungen werden zurückgesetzt), z.B. vor einem Update. Exit-Code 0 = beendet bzw. lief nicht.
-- `RingMouse.exe --render-ui <ordner>` rendert Ring, Tray-Icons und Einstellungsseiten als PNG, ganz ohne Maus.
-- `RingMouse.exe --selftest --quiet` prüft den echten Pfad: Gerät konfiguriert, Ring sichtbar, Fokus bleibt, sauberes Beenden. Ergebnis steht im Log. Aktionen laufen dabei nur als Trockenlauf (es wird nichts ausgeführt); die Maus währenddessen nicht bewegen.
-- Abhängigkeiten: Serilog (Apache-2.0), H.NotifyIcon (MIT), xUnit (Apache-2.0). Solaar diente nur als Protokollreferenz; es wurde kein GPL-Code übernommen.
+- .NET 10 (LTS until 11/2028), self-contained, win-x64. The SDK's CLI telemetry is turned off in the script.
+- `RingMouse.exe --exit` quits a running instance cleanly (like tray → Exit; diversions are reset), e.g. before an update.
+  Exit code 0 = quit or was not running.
+- `RingMouse.exe --render-ui <folder>` renders the ring, tray icons and settings pages as PNG files, without a mouse.
+- `RingMouse.exe --selftest --quiet` checks the real path: device configured, ring visible, focus kept, clean exit. The
+  result is in the log. Actions only run as a dry run (nothing is executed); don't move the mouse meanwhile.
+- Manual test checklist for contributors: [docs/testing.md](docs/testing.md).
+- Dependencies: Serilog (Apache-2.0), H.NotifyIcon (MIT), xUnit (Apache-2.0). Solaar was used as a protocol reference
+  only; no GPL code was copied.
 
-## Lizenz
+## License
 
-[MIT mit „Commons Clause“](LICENSE): RingMouse darf kostenlos genutzt werden, auch beruflich, und darf verändert und
-kostenlos weitergegeben werden. Nicht erlaubt ist, RingMouse zu verkaufen oder kostenpflichtige Produkte oder Dienste
-anzubieten, deren Wert im Wesentlichen aus RingMouse stammt. Zum Mitwirken siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+[MIT with "Commons Clause"](LICENSE): RingMouse may be used free of charge – also at work –, modified and passed on free
+of charge. Selling RingMouse, or offering paid products or services whose value derives substantially from it, is not
+permitted. For contributions see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Logitech, Logi Options+ und MX Vertical sind Marken von Logitech. RingMouse ist ein unabhängiges Projekt und steht in
-keiner Verbindung zu Logitech.
+Logitech, Logi Options+ and MX Vertical are trademarks of Logitech. RingMouse is an independent project and is not
+affiliated with Logitech.

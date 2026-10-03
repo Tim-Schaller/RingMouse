@@ -23,7 +23,7 @@ public static class Program
         using var mutex = new Mutex(initiallyOwned: true, MutexName, out var isFirst);
         if (!isFirst)
         {
-            Logging.StartupTrace.Write("zweite Instanz – beende");
+            Logging.StartupTrace.Write("second instance – exiting");
             // Zweite Instanz: bei einem Autostart (Anmeldung/Entsperren) still beenden, sonst die laufende Instanz
             // ihre Einstellungen öffnen lassen.
             if (!args.Contains("--autostart", StringComparer.OrdinalIgnoreCase) &&
@@ -38,8 +38,25 @@ public static class Program
         var app = new RingMouseApplication(args);
         var code = app.Run();
         if (app.EndedBySessionEnding) RestartIfSessionContinues(mutex);
+        else if (app.RestartRequested) StartNewInstance(mutex, "--settings");
         GC.KeepAlive(mutex);
         return code;
+    }
+
+    /// <summary>Gewünschter Neustart (z.B. Sprachwechsel): Sperre freigeben und eine neue Instanz starten.</summary>
+    private static void StartNewInstance(Mutex mutex, string arguments)
+    {
+        mutex.ReleaseMutex();
+        mutex.Dispose();
+        try
+        {
+            if (Environment.ProcessPath is { } exe)
+                Process.Start(new ProcessStartInfo(exe, arguments) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logging.StartupTrace.Write($"Restart failed: {ex.Message}");
+        }
     }
 
     /// <summary>

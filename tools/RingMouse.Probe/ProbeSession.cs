@@ -42,7 +42,7 @@ internal sealed class ProbeSession : IDisposable
         var transport = new WinHidTransport();
         var endpoints = SortEndpoints(HidppDiscovery.FindEndpoints(transport));
         if (endpoints.Count == 0)
-            throw new ProbeException("Kein Logitech-Gerät mit HID++-Collection gefunden. Ist die Maus verbunden und wach?");
+            throw new ProbeException("No Logitech device with a HID++ collection found. Is the mouse connected and awake?");
 
         var endpoint = SelectEndpoint(endpoints, o.Device);
         HidppChannel channel;
@@ -52,7 +52,7 @@ internal sealed class ProbeSession : IDisposable
         }
         catch (HidIoException ex) when (ex.NativeErrorCode is 5 or 32)
         {
-            throw new ProbeException($"{ex.Message}\nHält ein anderes Programm die HID++-Collection exklusiv offen?");
+            throw new ProbeException($"{ex.Message}\nIs another program holding the HID++ collection open exclusively?");
         }
 
         FrameRecorder? recorder = null;
@@ -82,9 +82,9 @@ internal sealed class ProbeSession : IDisposable
             {
                 var slot = o.ReceiverIndex is { } wanted
                     ? identity.Slots.FirstOrDefault(s => s.DeviceIndex == wanted)
-                      ?? throw new ProbeException($"Am Receiver antwortet kein Gerät auf Index {wanted}.")
+                      ?? throw new ProbeException($"No device responds at receiver index {wanted}.")
                     : identity.Slots.FirstOrDefault(s => s.Protocol is { IsHidpp20: true })
-                      ?? throw new ProbeException("Am Receiver antwortet gerade kein HID++-2.0-Gerät (schläft es? Maus bewegen).");
+                      ?? throw new ProbeException("No HID++ 2.0 device is currently responding on the receiver (asleep? move the mouse).");
                 index = slot.DeviceIndex;
                 protocol = slot.Protocol;
             }
@@ -95,7 +95,7 @@ internal sealed class ProbeSession : IDisposable
             }
             else
             {
-                throw new ProbeException($"{endpoint.DisplayName} antwortet nicht auf HID++. Schläft die Maus? Kurz bewegen und erneut versuchen.");
+                throw new ProbeException($"{endpoint.DisplayName} does not respond to HID++. Is the mouse asleep? Move it briefly and try again.");
             }
 
             var device = new HidppDevice(channel, index, o.SoftwareId) { Timeout = TimeSpan.FromMilliseconds(o.TimeoutMs) };
@@ -122,7 +122,7 @@ internal sealed class ProbeSession : IDisposable
         }
 
         return endpoints.FirstOrDefault(e => e.DisplayName.Contains(spec, StringComparison.OrdinalIgnoreCase))
-               ?? throw new ProbeException($"Gerät '{spec}' nicht gefunden – siehe 'ringmouse-probe list'.");
+               ?? throw new ProbeException($"Device '{spec}' not found – see 'ringmouse-probe list'.");
     }
 
     private static void PrintRawFrame(HidppChannel channel, FrameDirection direction, byte[] frame, long timestamp) =>
@@ -158,6 +158,6 @@ internal static class OptionsPlusCheck
     {
         var running = Running();
         if (running.Count > 0)
-            ConsoleOut.Warn($"Logi Options+ läuft ({string.Join(", ", running)}) – es kann Umleitungen jederzeit überschreiben.");
+            ConsoleOut.Warn($"Logi Options+ is running ({string.Join(", ", running)}) – it can overwrite diversions at any time.");
     }
 }

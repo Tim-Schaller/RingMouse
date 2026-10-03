@@ -10,24 +10,24 @@ public sealed class RingMouseConfig
     [JsonPropertyOrder(-10)]
     public string? Schema { get; set; } = "./config.schema.json";
 
-    [Description("Format-Version der Config.")]
+    [Description("Config format version.")]
     public int Version { get; set; } = 1;
 
     public GeneralSettings General { get; set; } = new();
 
-    [Description("Ring-Verhalten und -Aussehen.")]
+    [Description("Ring behavior and appearance.")]
     public RingSettings Ring { get; set; } = new();
 
-    [Description("Standard-Tastenbelegung: CID (z.B. \"0x00FD\", siehe ringmouse-probe controls) → Aktion.")]
+    [Description("Default button assignment: CID (e.g. \"0x00FD\", see ringmouse-probe controls) → action.")]
     public Dictionary<string, ActionDefinition> Buttons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    [Description("Benannte Ringe. Ein Ring hat bis zu 8 Segmente (null = leerer Platz). Segment 0 liegt oben, dann im Uhrzeigersinn.")]
+    [Description("Named rings. A ring has up to 8 segments (null = empty slot). Segment 0 is at the top, then clockwise.")]
     public Dictionary<string, RingDefinition> Rings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    [Description("App-spezifische Profile. Das erste passende Profil gewinnt; alles, was es nicht überschreibt, kommt aus dem Standard.")]
+    [Description("App-specific profiles. The first matching profile wins; anything it doesn't override comes from the default.")]
     public List<ProfileDefinition> Profiles { get; set; } = [];
 
-    [Description("Geräte-Einstellungen. Schlüssel: \"*\" (alle), Teil des Gerätenamens (z.B. \"MX Vertical\") oder Produkt-ID (\"B020\").")]
+    [Description("Device settings. Key: \"*\" (all), part of the device name (e.g. \"MX Vertical\") or product ID (\"B020\").")]
     public Dictionary<string, DeviceSettings> Devices { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public BatterySettings Battery { get; set; } = new();
@@ -37,31 +37,41 @@ public sealed class RingMouseConfig
 
 public enum AutostartMode
 {
-    [Description("Kein Autostart")] Off,
-    [Description("HKCU\\...\\Run (normale Rechte)")] Run,
-    [Description("Aufgabenplanung mit höchsten Privilegien (funktioniert auch in Admin-Fenstern)")] Task,
+    [Description("No autostart")] Off,
+    [Description("HKCU\\...\\Run (normal rights)")] Run,
+    [Description("Scheduled task with highest privileges (also works in admin windows)")] Task,
+}
+
+public enum UiLanguage
+{
+    [Description("Follow the Windows display language")] Auto,
+    [Description("English")] English,
+    [Description("German")] German,
 }
 
 public sealed class GeneralSettings
 {
+    [Description("UI language: auto (Windows display language) | english | german")]
+    public UiLanguage Language { get; set; } = UiLanguage.Auto;
+
     [Description("off | run | task")]
     public AutostartMode Autostart { get; set; } = AutostartMode.Off;
 
-    [Description("Warnen, wenn Logi Options+ läuft (es überschreibt Tastenumleitungen).")]
+    [Description("Warn if Logi Options+ is running (it overrides button diversions).")]
     public bool WarnIfOptionsPlusRunning { get; set; } = true;
 
-    [Description("Von Options+ aktivierte Analytics-Key-Events (jeder Klick wird gefunkt) abschalten.")]
+    [Description("Turn off the analytics key events enabled by Options+ (every click is transmitted wirelessly).")]
     public bool DisableAnalyticsReporting { get; set; } = true;
 
-    [Description("Serilog-Level: Verbose | Debug | Information | Warning | Error")]
+    [Description("Serilog level: Verbose | Debug | Information | Warning | Error")]
     public string LogLevel { get; set; } = "Information";
 }
 
 public enum RingMode
 {
-    [Description("Halten: Taste halten, Richtung wählen, Loslassen führt aus")] Hold,
-    [Description("Tippen: Ring bleibt offen, Klick auf Segment führt aus")] Tap,
-    [Description("Hybrid: kurz tippen = Tippen, halten + bewegen = Halten")] Hybrid,
+    [Description("Hold: hold the button, choose a direction, releasing executes")] Hold,
+    [Description("Tap: the ring stays open, clicking a segment executes")] Tap,
+    [Description("Hybrid: quick tap = Tap, hold + move = Hold")] Hybrid,
 }
 
 public enum RawXYUsage
@@ -83,67 +93,67 @@ public sealed class RingSettings
     [Description("hold | tap | hybrid")]
     public RingMode Mode { get; set; } = RingMode.Hybrid;
 
-    [Description("Außenradius des Rings in DIP (logischen Pixeln).")]
+    [Description("Outer radius of the ring in DIP (logical pixels).")]
     public double Radius { get; set; } = 150;
 
-    [Description("Deadzone in der Mitte in DIP: Loslassen/Klicken darin = Abbruch.")]
+    [Description("Deadzone in the center in DIP: releasing/clicking inside it cancels.")]
     public double Deadzone { get; set; } = 26;
 
-    [Description("Hybrid: Ein Tippen kürzer als diese Zeit (ms) lässt den Ring offen.")]
+    [Description("Hybrid: a tap shorter than this time (ms) keeps the ring open.")]
     public int TapThresholdMs { get; set; } = 350;
 
-    [Description("Beim Halten über ein Untermenü hinaus nach außen schieben öffnet es; die Taste bleibt gedrückt, Loslassen wählt dort aus.")]
+    [Description("While holding, pushing outward past a submenu opens it; the button stays pressed and releasing selects there.")]
     public bool SubmenuPush { get; set; } = true;
 
-    [Description("Mauszeiger beim Halten ausblenden, solange ein Punkt die Raw-XY-Richtung zeigt (im Tippen-Modus bleibt er sichtbar).")]
+    [Description("Hide the mouse pointer while holding, as long as a dot shows the raw XY direction (it stays visible in Tap mode).")]
     public bool HideCursor { get; set; } = true;
 
-    [Description("Dezente Öffnen-Animation.")]
+    [Description("Subtle opening animation.")]
     public bool Animation { get; set; } = true;
 
-    [Description("Mauszeiger nach dem Schließen an die Ausgangsposition zurücksetzen.")]
+    [Description("Move the mouse pointer back to its starting position after closing.")]
     public bool RestoreCursor { get; set; } = true;
 
-    [Description("Raw-XY beim Halten: auto (wenn die Taste es kann) | on | off. Mit Raw-XY bleibt der Zeiger beim Halten stehen.")]
+    [Description("Raw XY while holding: auto (if the button supports it) | on | off. With raw XY the pointer stays put while holding.")]
     public RawXYUsage UseRawXY { get; set; } = RawXYUsage.Auto;
 
-    [Description("Umrechnung Raw-XY-Zählschritte → DIP.")]
+    [Description("Conversion of raw XY counts → DIP.")]
     public double RawXYScale { get; set; } = 0.6;
 
     [Description("system | light | dark")]
     public ThemePreference Theme { get; set; } = ThemePreference.System;
 
-    [Description("Grundfarbe des Rings \"#RRGGBB\"; leer = passend zu Hell/Dunkel. Schrift und Abstufungen werden daraus abgeleitet.")]
+    [Description("Base color of the ring \"#RRGGBB\"; empty = matches light/dark. Text and shades are derived from it.")]
     public string? RingColor { get; set; }
 
-    [Description("Markierungsfarbe \"#RRGGBB\"; leer = Windows-Akzentfarbe.")]
+    [Description("Highlight color \"#RRGGBB\"; empty = Windows accent color.")]
     public string? AccentColor { get; set; }
 
-    [Description("Deckkraft des Rings in Prozent (30–100).")]
+    [Description("Ring opacity in percent (30–100).")]
     public int Opacity { get; set; } = 100;
 
-    [Description("Größe von Symbolen und Beschriftungen in Prozent (50–200), zusätzlich zum Radius.")]
+    [Description("Size of icons and labels in percent (50–200), on top of the radius.")]
     public int TextScale { get; set; } = 100;
 
-    [Description("Farbe des Zeigerpunkts beim Halten \"#RRGGBB\"; leer = automatisch (hell auf der Markierung).")]
+    [Description("Color of the pointer dot while holding \"#RRGGBB\"; empty = automatic (light on the highlight).")]
     public string? PointerColor { get; set; }
 
-    [Description("Durchmesser des Zeigerpunkts in DIP (2–40).")]
+    [Description("Diameter of the pointer dot in DIP (2–40).")]
     public double PointerSize { get; set; } = 9;
 
-    [Description("Beschriftungen unter den Icons anzeigen.")]
+    [Description("Show labels below the icons.")]
     public bool ShowLabels { get; set; } = true;
 
-    [Description("Tippen-Modus: Ring nach n Sekunden automatisch schließen (0 = nie).")]
+    [Description("Tap mode: close the ring automatically after n seconds (0 = never).")]
     public int AutoCloseSeconds { get; set; } = 8;
 }
 
 public sealed class RingDefinition
 {
-    [Description("Optionaler Titel (wird in der Mitte angezeigt, solange nichts gewählt ist).")]
+    [Description("Optional title (shown in the center while nothing is selected).")]
     public string? Title { get; set; }
 
-    [Description("2–8 Segmente, null = leerer Platz. Index 0 = oben, dann im Uhrzeigersinn.")]
+    [Description("2–8 segments, null = empty slot. Index 0 = top, then clockwise.")]
     public List<RingSegment?> Segments { get; set; } = [];
 }
 
@@ -151,7 +161,7 @@ public sealed class RingSegment
 {
     public string Label { get; set; } = "";
 
-    [Description("Symbolname (z.B. \"Lock\"), \"glyph:E72E\", \"file:C:\\\\pfad\\\\bild.png\", \"exe:C:\\\\pfad\\\\app.exe\" oder \"text:AB\".")]
+    [Description("Icon name (e.g. \"Lock\"), \"glyph:E72E\", \"file:C:\\\\path\\\\image.png\", \"exe:C:\\\\path\\\\app.exe\" or \"text:AB\".")]
     public string? Icon { get; set; }
 
     public ActionDefinition? Action { get; set; }
@@ -163,40 +173,40 @@ public sealed class ProfileDefinition
 
     public bool Enabled { get; set; } = true;
 
-    [Description("Prozessnamen des Vordergrundfensters, z.B. \"excel.exe\"; Platzhalter * und ? erlaubt.")]
+    [Description("Process names of the foreground window, e.g. \"excel.exe\"; wildcards * and ? allowed.")]
     public List<string> Processes { get; set; } = [];
 
-    [Description("Überschreibt einzelne Tasten (CID → Aktion).")]
+    [Description("Overrides individual buttons (CID → action).")]
     public Dictionary<string, ActionDefinition> Buttons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    [Description("Ersetzt Ringe: Ringname → anderer Ringname (z.B. \"main\": \"main-excel\").")]
+    [Description("Replaces rings: ring name → other ring name (e.g. \"main\": \"main-excel\").")]
     public Dictionary<string, string> Rings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class DeviceSettings
 {
-    [Description("Sensor-DPI (wird nach jedem Reconnect erneut gesetzt); null = nicht anfassen.")]
+    [Description("Sensor DPI (applied again after every reconnect); null = leave unchanged.")]
     public int? Dpi { get; set; }
 
-    [Description("false = RingMouse lässt dieses Gerät komplett in Ruhe.")]
+    [Description("false = RingMouse leaves this device completely alone.")]
     public bool Enabled { get; set; } = true;
 }
 
 public sealed class BatterySettings
 {
-    [Description("Warnschwellen in Prozent – jede meldet sich einmal pro Entladezyklus.")]
+    [Description("Warning thresholds in percent – each one fires once per discharge cycle.")]
     public List<int> Thresholds { get; set; } = [20, 10, 5];
 
-    [Description("Meldung \"Aufladen abgeschlossen\".")]
+    [Description("Show a \"charging complete\" notification.")]
     public bool NotifyCharged { get; set; } = true;
 
-    [Description("Abfrage-Intervall in Minuten, falls keine Akku-Events kommen.")]
+    [Description("Polling interval in minutes in case no battery events arrive.")]
     public int PollMinutes { get; set; } = 10;
 
-    [Description("Gerät für das Tray-Icon (Teil des Namens); null = erstes Gerät mit Akku.")]
+    [Description("Device for the tray icon (part of the name); null = first device with a battery.")]
     public string? TrayDevice { get; set; }
 
-    [Description("Eigene Spannungskurve für 0x1001: Liste von {\"mv\":…, \"percent\":…}.")]
+    [Description("Custom voltage curve for 0x1001: list of {\"mv\":…, \"percent\":…}.")]
     public List<VoltagePoint>? VoltageCurve { get; set; }
 }
 
@@ -208,9 +218,9 @@ public sealed class VoltagePoint
 
 public sealed class DebugSettings
 {
-    [Description("Alle HID++-Rohframes in logs\\hidpp-*.log mitschreiben.")]
+    [Description("Record all raw HID++ frames in logs\\hidpp-*.log.")]
     public bool RawHidLog { get; set; }
 
-    [Description("Öffnungslatenz des Rings loggen.")]
+    [Description("Log the ring's opening latency.")]
     public bool LogRingLatency { get; set; } = true;
 }

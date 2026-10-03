@@ -47,7 +47,7 @@ public sealed class HidIoException : IOException
     public int NativeErrorCode { get; }
 
     public HidIoException(int nativeError, string operation)
-        : base($"{operation} fehlgeschlagen: Win32-Fehler {nativeError} ({DescribeError(nativeError)})")
+        : base($"{operation} failed: Win32 error {nativeError} ({DescribeError(nativeError)})")
     {
         NativeErrorCode = nativeError;
         HResult = unchecked((int)0x80070000) | (nativeError & 0xFFFF);
@@ -60,16 +60,16 @@ public sealed class HidIoException : IOException
 
     private static string DescribeError(int code) => code switch
     {
-        2 => "Datei/Gerät nicht gefunden",
-        5 => "Zugriff verweigert",
-        6 => "ungültiges Handle",
-        21 => "Gerät nicht bereit",
-        31 => "Gerät funktioniert nicht (GEN_FAILURE)",
-        32 => "Freigabeverletzung (anderer Prozess hält das Gerät exklusiv)",
-        55 => "Gerät existiert nicht mehr",
-        87 => "ungültiger Parameter",
-        995 => "Vorgang abgebrochen",
-        1167 => "Gerät nicht verbunden",
+        2 => "file/device not found",
+        5 => "access denied",
+        6 => "invalid handle",
+        21 => "device not ready",
+        31 => "device not functioning (GEN_FAILURE)",
+        32 => "sharing violation (another process holds the device exclusively)",
+        55 => "device no longer exists",
+        87 => "invalid parameter",
+        995 => "operation aborted",
+        1167 => "device not connected",
         _ => new System.ComponentModel.Win32Exception(code).Message,
     };
 }

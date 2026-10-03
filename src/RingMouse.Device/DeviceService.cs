@@ -6,6 +6,7 @@ using RingMouse.HidPlusPlus.Discovery;
 using RingMouse.HidPlusPlus.Features;
 using RingMouse.HidPlusPlus.Receivers;
 using RingMouse.HidPlusPlus.Transport;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Device;
 
@@ -117,7 +118,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         RequestRescan("Start", TimeSpan.Zero);
         Beat("Start");
         _loop = Task.Run(() => LoopAsync(0, _cts.Token));
-        _loopWatchdog = new Thread(WatchdogThread) { IsBackground = true, Name = "RingMouse Geräte-Wächter" };
+        _loopWatchdog = new Thread(WatchdogThread) { IsBackground = true, Name = "RingMouse device watchdog" };
         _loopWatchdog.Start();
         // Im Hintergrund anmelden: CM_Register_Notification darf den Aufrufer (UI-Thread) nie aufhalten
         if (_watcher is not null) _ = Task.Run(StartWatcher);
@@ -133,7 +134,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Geräte-Benachrichtigungen nicht verfügbar – nur periodischer Scan");
+            _logger.LogWarning(ex, "Device notifications unavailable – periodic scan only");
         }
     }
 
@@ -144,9 +145,9 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         if (_sessions.IsEmpty && DateTime.UtcNow - _lastArrivalLog > TimeSpan.FromSeconds(10))
         {
             _lastArrivalLog = DateTime.UtcNow;
-            _logger.LogInformation("HID-Gerät angemeldet – suche Logitech-Geräte");
+            _logger.LogInformation("HID device arrived – looking for Logitech devices");
         }
-        RequestRescan("HID-Gerät angemeldet", TimeSpan.FromMilliseconds(800));
+        RequestRescan("HID device arrived", TimeSpan.FromMilliseconds(800));
     }
 
     private void Beat(string step)
@@ -171,7 +172,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             if (idle < stallMs) continue;
 
             var step = _loopStep;
-            _logger.LogError("Geräteverwaltung hängt seit {Seconds} s bei \"{Step}\" – Durchlauf wird abgebrochen", idle / 1000, step);
+            _logger.LogError("Device management stuck for {Seconds} s at \"{Step}\" – cancelling the iteration", idle / 1000, step);
             try
             {
                 Volatile.Read(ref _iteration)?.Cancel();
@@ -185,16 +186,16 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             if (Environment.TickCount64 - Volatile.Read(ref _loopBeat) < stallMs) continue; // hat sich gefangen
 
             var generation = Interlocked.Increment(ref _loopGeneration);
-            Beat("Neustart der Schleife");
+            Beat("Restarting the loop");
             _loop = Task.Run(() => LoopAsync(generation, _cts.Token));
-            _logger.LogWarning("Geräteverwaltung: Schleife neu gestartet (hing bei \"{Step}\")", step);
+            _logger.LogWarning("Device management: loop restarted (was stuck at \"{Step}\")", step);
         }
     }
 
     public void UpdateConfiguration(DeviceConfiguration configuration)
     {
         _configuration = configuration;
-        foreach (var d in AllDevices()) d.RequestConfigure(TimeSpan.Zero, "Config geändert");
+        foreach (var d in AllDevices()) d.RequestConfigure(TimeSpan.Zero, "config changed");
     }
 
     /// <summary>Alle Geräte neu konfigurieren, z.B. nach Standby oder Entsperren (mehrere Versuche, BLE braucht Zeit).</summary>
@@ -238,7 +239,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             }
             catch (HidppException ex)
             {
-                _logger.LogWarning("{Device}: DPI nicht setzbar: {Error}", d.Name, ex.Message);
+                _logger.LogWarning("{Device}: cannot set DPI: {Error}", d.Name, ex.Message);
             }
         }
         return result;
@@ -268,34 +269,34 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         var capture = new TaskCompletionSource<ButtonEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_captureLock)
         {
-            if (_capture is not null) throw new InvalidOperationException("Die Tasten-Erkennung läuft bereits.");
+            if (_capture is not null) throw new InvalidOperationException(L("Button detection is already running.", "Die Tasten-Erkennung läuft bereits."));
             _capture = capture;
         }
 
-        _logger.LogInformation("Tasten-Erkennung gestartet – alle umleitbaren Maustasten vorübergehend umgeleitet");
+        _logger.LogInformation("Button detection started – all divertable mouse buttons temporarily diverted");
         try
         {
-            await ConfigureNowAsync("Tasten-Erkennung", ct).ConfigureAwait(false);
+            await ConfigureNowAsync("button detection", ct).ConfigureAwait(false);
             armed?.Invoke();
             var pressed = await capture.Task.WaitAsync(timeout, ct).ConfigureAwait(false);
-            _logger.LogInformation("Tasten-Erkennung: {Cid} ({Name}) auf {Device}", ControlIds.Format(pressed.ControlId),
+            _logger.LogInformation("Button detection: {Cid} ({Name}) on {Device}", ControlIds.Format(pressed.ControlId),
                 ControlIds.GetName(pressed.ControlId), pressed.DeviceKey);
             return pressed;
         }
         catch (TimeoutException)
         {
-            _logger.LogInformation("Tasten-Erkennung: keine Taste gedrückt (Zeit abgelaufen)");
+            _logger.LogInformation("Button detection: no button pressed (timed out)");
             return null;
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("Tasten-Erkennung abgebrochen");
+            _logger.LogInformation("Button detection cancelled");
             return null;
         }
         finally
         {
             lock (_captureLock) _capture = null;
-            foreach (var d in AllDevices()) d.RequestConfigure(TimeSpan.Zero, "Tasten-Erkennung beendet");
+            foreach (var d in AllDevices()) d.RequestConfigure(TimeSpan.Zero, "button detection ended");
         }
     }
 
@@ -364,7 +365,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
-                    _logger.LogWarning("Geräteverwaltung: Durchlauf abgebrochen (hing bei \"{Step}\")", _loopStep);
+                    _logger.LogWarning("Device management: iteration cancelled (was stuck at \"{Step}\")", _loopStep);
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested)
                 {
@@ -375,7 +376,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
                 {
                     Interlocked.CompareExchange(ref _iteration, null, iteration);
                 }
-                Beat("Warte auf nächsten Takt");
+                Beat("Waiting for next tick");
             }
             while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false));
         }
@@ -387,7 +388,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
 
     private async Task RunOnceAsync(CancellationToken ct)
     {
-        Beat("Takt");
+        Beat("Tick");
         var now = DateTime.UtcNow;
         string? reason = null;
         lock (_rescanLock)
@@ -396,17 +397,17 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             {
                 reason = _rescanReason;
                 _nextRescan = now + Options.RescanInterval;
-                _rescanReason = "periodischer Scan";
+                _rescanReason = "periodic scan";
             }
         }
         if (reason is not null) await RescanAsync(reason, ct).ConfigureAwait(false);
 
-        Beat("Geräte-Takt");
+        Beat("Device tick");
         if (now - _lastStatusLog >= TimeSpan.FromMinutes(30))
         {
             _lastStatusLog = now;
             var devices = AllDevices().Select(d => $"{d.Name}: {d.State}").ToList();
-            _logger.LogInformation("Status: {Count} Gerät(e) [{Devices}], letzter Scan {Scan:HH:mm:ss}, letzte HID-Anmeldung {Arrival:HH:mm:ss}",
+            _logger.LogInformation("Status: {Count} device(s) [{Devices}], last scan {Scan:HH:mm:ss}, last HID arrival {Arrival:HH:mm:ss}",
                 devices.Count, string.Join(", ", devices), _lastScan.ToLocalTime(), _lastArrival);
         }
 
@@ -429,12 +430,12 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         var now = DateTime.UtcNow;
         var level = now - _lastLoopError >= TimeSpan.FromMinutes(1) ? LogLevel.Error : LogLevel.Debug;
         if (level == LogLevel.Error) _lastLoopError = now;
-        _logger.Log(level, ex, "Fehler in der Geräteverwaltung – läuft weiter");
+        _logger.Log(level, ex, "Error in device management – continuing");
     }
 
     private async Task RescanAsync(string reason, CancellationToken ct)
     {
-        Beat("HID-Scan");
+        Beat("HID scan");
         IReadOnlyList<HidDeviceInfo> collections;
         IReadOnlyList<HidppEndpoint> endpoints;
         try
@@ -444,7 +445,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "HID-Enumeration fehlgeschlagen");
+            _logger.LogWarning(ex, "HID enumeration failed");
             return;
         }
         _lastScan = DateTime.UtcNow;
@@ -453,24 +454,24 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         var present = endpoints.Select(e => e.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, session) in _sessions.ToArray())
         {
-            if (!present.Contains(key)) RemoveSession(key, "nicht mehr vorhanden", session);
-            else if (session.Channel.IsClosed) RemoveSession(key, "Kanal geschlossen", session); // tote Sitzung → neu öffnen
+            if (!present.Contains(key)) RemoveSession(key, "no longer present", session);
+            else if (session.Channel.IsClosed) RemoveSession(key, "channel closed", session); // tote Sitzung → neu öffnen
         }
 
         foreach (var endpoint in endpoints)
         {
             if (_sessions.ContainsKey(endpoint.Key)) continue;
             if (_retryAfter.TryGetValue(endpoint.Key, out var retry) && DateTime.UtcNow < retry) continue;
-            _logger.LogDebug("Öffne {Device} ({Reason})", endpoint.DisplayName, reason);
+            _logger.LogDebug("Opening {Device} ({Reason})", endpoint.DisplayName, reason);
             try
             {
-                Beat($"Öffne {endpoint.DisplayName}");
+                Beat($"Opening {endpoint.DisplayName}");
                 await OpenSessionAsync(endpoint, ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                _logger.LogWarning(ex, "{Device}: Öffnen fehlgeschlagen – neuer Versuch in 30 s", endpoint.DisplayName);
-                RemoveSession(endpoint.Key, "Fehler beim Öffnen");
+                _logger.LogWarning(ex, "{Device}: opening failed – retrying in 30 s", endpoint.DisplayName);
+                RemoveSession(endpoint.Key, "error while opening");
                 _retryAfter[endpoint.Key] = DateTime.UtcNow.AddSeconds(30);
             }
         }
@@ -484,7 +485,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
     {
         if (_enumeration is { IsCompleted: false })
         {
-            _logger.LogDebug("HID-Enumeration hängt noch – Scan übersprungen");
+            _logger.LogDebug("HID enumeration still stuck – scan skipped");
             return null;
         }
         var task = Task.Run(() =>
@@ -499,7 +500,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         }
         catch (TimeoutException)
         {
-            _logger.LogWarning("HID-Enumeration hängt seit {Seconds} s (Treiber antwortet nicht) – nächster Versuch später",
+            _logger.LogWarning("HID enumeration stuck for {Seconds} s (driver not responding) – retrying later",
                 Options.EnumerationTimeout.TotalSeconds);
             return null;
         }
@@ -511,7 +512,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         if (endpoints.Count > 0 || !_sessions.IsEmpty)
         {
             if (_missingSince is { } since && endpoints.Count > 0)
-                _logger.LogInformation("Logitech-HID++-Gerät wieder gefunden (fehlte seit {Since:HH:mm:ss})", since.ToLocalTime());
+                _logger.LogInformation("Logitech HID++ device found again (missing since {Since:HH:mm:ss})", since.ToLocalTime());
             _missingSince = null;
             return;
         }
@@ -520,9 +521,9 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         if (now - _lastMissingLog < TimeSpan.FromMinutes(10)) return;
         _lastMissingLog = now;
         var seen = collections.Count == 0
-            ? "keine Logitech-Collections"
+            ? "no Logitech collections"
             : string.Join("; ", collections.Select(c => $"{c.CollectionTag} UP 0x{c.UsagePage:X4} In {c.InputReportLength} IDs [{string.Join(",", c.InputReportIds.Select(i => i.ToString("X2")))}]"));
-        _logger.LogInformation("Kein Logitech-HID++-Gerät verbunden (seit {Since:HH:mm:ss}) – Scan sieht: {Seen}", _missingSince.Value.ToLocalTime(), seen);
+        _logger.LogInformation("No Logitech HID++ device connected (since {Since:HH:mm:ss}) – scan sees: {Seen}", _missingSince.Value.ToLocalTime(), seen);
     }
 
     private async Task OpenSessionAsync(HidppEndpoint endpoint, CancellationToken ct)
@@ -539,13 +540,13 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             // Kommt das Öffnen doch noch zurück, den Kanal wieder schließen
             _ = open.ContinueWith(t => t.Result.Dispose(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
             if (ex is OperationCanceledException) throw;
-            _logger.LogWarning("{Device}: Öffnen hängt (Treiber antwortet nicht) – neuer Versuch in 30 s", endpoint.DisplayName);
+            _logger.LogWarning("{Device}: opening is stuck (driver not responding) – retrying in 30 s", endpoint.DisplayName);
             _retryAfter[endpoint.Key] = DateTime.UtcNow.AddSeconds(30);
             return;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("{Device}: HID++-Collection nicht zu öffnen ({Error}) – neuer Versuch in 30 s", endpoint.DisplayName, ex.Message);
+            _logger.LogWarning("{Device}: cannot open HID++ collection ({Error}) – retrying in 30 s", endpoint.DisplayName, ex.Message);
             _retryAfter[endpoint.Key] = DateTime.UtcNow.AddSeconds(30);
             return;
         }
@@ -560,7 +561,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         channel.Start();
         if (channel.IsClosed) return; // gleich wieder zu – OnChannelClosed hat aufgeräumt
 
-        Beat($"Erkenne {endpoint.DisplayName}");
+        Beat($"Identifying {endpoint.DisplayName}");
         EndpointIdentity identity;
         try
         {
@@ -582,12 +583,12 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             }
             catch (HidppException ex)
             {
-                _logger.LogWarning("{Receiver}: Wireless-Notifications nicht aktivierbar: {Error}", endpoint.DisplayName, ex.Message);
+                _logger.LogWarning("{Receiver}: cannot enable wireless notifications: {Error}", endpoint.DisplayName, ex.Message);
             }
             foreach (var slot in identity.Slots)
             {
-                var device = AddDevice(session, slot.DeviceIndex, $"{endpoint.BusText}-Receiver, Index {slot.DeviceIndex}", endpoint.ProductId);
-                device.RequestConfigure(TimeSpan.Zero, "am Receiver gefunden");
+                var device = AddDevice(session, slot.DeviceIndex, ConnectionText(endpoint, slot.DeviceIndex), endpoint.ProductId);
+                device.RequestConfigure(TimeSpan.Zero, "found on receiver");
             }
             try
             {
@@ -597,21 +598,31 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             {
                 // nicht kritisch
             }
-            _logger.LogInformation("Receiver {Receiver} (PID {Pid:X4}) geöffnet, {Count} Gerät(e) antworten", endpoint.DisplayName,
+            _logger.LogInformation("Receiver {Receiver} (PID {Pid:X4}) opened, {Count} device(s) responding", endpoint.DisplayName,
                 endpoint.ProductId, identity.Slots.Count(s => s.Protocol is not null));
         }
         else
         {
-            var device = AddDevice(session, HidppMessage.DirectDeviceIndex, endpoint.BusText, endpoint.ProductId);
-            device.RequestConfigure(TimeSpan.Zero, identity.Responds ? "Gerät gefunden" : "Gerät gefunden (antwortet noch nicht)");
-            _logger.LogInformation("{Device} ({Bus}, PID {Pid:X4}) geöffnet{Sleep}", endpoint.DisplayName, endpoint.BusText,
-                endpoint.ProductId, identity.Responds ? "" : " – antwortet noch nicht (schläft?)");
+            var device = AddDevice(session, HidppMessage.DirectDeviceIndex, ConnectionText(endpoint), endpoint.ProductId);
+            device.RequestConfigure(TimeSpan.Zero, identity.Responds ? "device found" : "device found (not responding yet)");
+            _logger.LogInformation("{Device} ({Bus}, PID {Pid:X4}) opened{Sleep}", endpoint.DisplayName, endpoint.BusText,
+                endpoint.ProductId, identity.Responds ? "" : " – not responding yet (asleep?)");
         }
     }
 
     private ManagedDevice AddDevice(EndpointSession session, byte index, string connection, ushort productId) =>
         session.Devices.GetOrAdd(index, i =>
             new ManagedDevice(this, session.Endpoint, new HidppDevice(session.Channel, i, Options.SoftwareId), connection, productId));
+
+    /// <summary>
+    /// Anbindung für Oberfläche und Tray, z.B. "Bluetooth LE" oder "USB-Receiver, Index 1". Die Bus-Bezeichnung der
+    /// HID++-Bibliothek ist nur englisch – "unbekannt" wird deshalb hier übersetzt.
+    /// </summary>
+    private static string ConnectionText(HidppEndpoint endpoint, byte? receiverIndex = null)
+    {
+        var bus = endpoint.Bus == HidBusType.Unknown ? L("unknown", "unbekannt") : endpoint.BusText;
+        return receiverIndex is { } index ? L($"{bus} receiver, index {index}", $"{bus}-Receiver, Index {index}") : bus;
+    }
 
     private void OnReceiverMessage(EndpointSession session, HidppMessage message)
     {
@@ -620,12 +631,12 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         if (connection.Connected && connection.LinkEstablished)
         {
             var device = AddDevice(session, connection.DeviceIndex,
-                $"{session.Endpoint.BusText}-Receiver, Index {connection.DeviceIndex}", connection.WirelessPid != 0 ? connection.WirelessPid : session.Endpoint.ProductId);
-            device.RequestConfigure(TimeSpan.FromMilliseconds(300), "Receiver: verbunden");
+                ConnectionText(session.Endpoint, connection.DeviceIndex), connection.WirelessPid != 0 ? connection.WirelessPid : session.Endpoint.ProductId);
+            device.RequestConfigure(TimeSpan.FromMilliseconds(300), "Receiver: connected");
         }
         else if (connection.Connected && session.Devices.TryGetValue(connection.DeviceIndex, out var sleeping))
         {
-            sleeping.MarkUnreachable("Funkverbindung zum Receiver getrennt");
+            sleeping.MarkUnreachable("wireless link to receiver lost");
         }
         else if (!connection.Connected && session.Devices.TryRemove(connection.DeviceIndex, out var removed))
         {
@@ -641,11 +652,11 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         {
             if (session.Endpoint.ContainsPath(path))
             {
-                RemoveSession(key, "HID-Interface abgemeldet", session);
+                RemoveSession(key, "HID interface removed", session);
                 break;
             }
         }
-        RequestRescan("HID-Gerät abgemeldet", TimeSpan.FromSeconds(2));
+        RequestRescan("HID device removed", TimeSpan.FromSeconds(2));
     }
 
     private void OnChannelClosed(string key, EndpointSession session, Exception? error)
@@ -653,13 +664,13 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         if (Volatile.Read(ref _stopped) != 0) return;
         if (error is not null)
         {
-            _logger.LogInformation("Kanal zu {Key} geschlossen: {Error}", key, error.Message);
+            _logger.LogInformation("Channel to {Key} closed: {Error}", key, error.Message);
             // Schließt der Kanal immer wieder kurz nach dem Öffnen, nicht im 2-s-Takt neu öffnen.
             if (DateTime.UtcNow - session.OpenedAt >= TimeSpan.FromSeconds(10)) _quickCloses.TryRemove(key, out _);
             else if (_quickCloses.AddOrUpdate(key, 1, (_, n) => n + 1) >= 3) _retryAfter[key] = DateTime.UtcNow.AddSeconds(30);
         }
-        RemoveSession(key, "Kanal geschlossen", session);
-        RequestRescan("Kanal geschlossen", TimeSpan.FromSeconds(2));
+        RemoveSession(key, "channel closed", session);
+        RequestRescan("channel closed", TimeSpan.FromSeconds(2));
     }
 
     /// <param name="expected">Nur diese Sitzung entfernen (nicht eine inzwischen neu geöffnete mit gleichem Schlüssel).</param>
@@ -680,14 +691,14 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             d.ReleaseAllButtons(System.Diagnostics.Stopwatch.GetTimestamp());
             return d.Snapshot();
         }).ToList();
-        _logger.LogInformation("{Device} entfernt ({Reason})", session.Endpoint.DisplayName, reason);
+        _logger.LogInformation("{Device} removed ({Reason})", session.Endpoint.DisplayName, reason);
         try
         {
             session.Dispose();
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Fehler beim Schließen von {Device}", session.Endpoint.DisplayName);
+            _logger.LogDebug(ex, "Error closing {Device}", session.Endpoint.DisplayName);
         }
         foreach (var s in snapshots) RaiseRemoved(s);
     }
@@ -704,7 +715,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler im Tasten-Handler");
+            _logger.LogError(ex, "Error in button handler");
         }
     }
 
@@ -716,7 +727,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fehler im Raw-XY-Handler");
+            _logger.LogError(ex, "Error in raw XY handler");
         }
     }
 
@@ -749,7 +760,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Fehler im Geräte-Handler");
+                    _logger.LogError(ex, "Error in device handler");
                 }
             }
             Volatile.Write(ref _eventsDraining, 0);
@@ -811,7 +822,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             if (_sessions.TryRemove(key, out var s)) s.Dispose();
         }
         _watcher?.Dispose();
-        _logger.LogInformation("DeviceService beendet, Umleitungen zurückgesetzt");
+        _logger.LogInformation("DeviceService stopped, diversions reset");
     }
 
     public async ValueTask DisposeAsync() => await StopAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);

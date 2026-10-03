@@ -37,19 +37,19 @@ internal sealed class EventPrinter
     private (string? Text, ConsoleColor Color) Decode(HidppMessage m)
     {
         if (m.IsHidpp20Error)
-            return ($"HID++-2.0-Fehler {(Hidpp20Error)m.Payload[1]} auf Feature-Index {m.Address} Fn/SW 0x{m.Payload[0]:X2} (Antwort an anderes Programm?)", ConsoleColor.DarkYellow);
+            return ($"HID++ 2.0 error {(Hidpp20Error)m.Payload[1]} on feature index {m.Address} Fn/SW 0x{m.Payload[0]:X2} (response to another program?)", ConsoleColor.DarkYellow);
         if (m.IsHidpp10Error)
-            return ($"HID++-1.0-Fehler {(Hidpp10Error)m.Payload[1]} auf Sub-ID 0x{m.Address:X2} Register 0x{m.Payload[0]:X2}", ConsoleColor.DarkYellow);
+            return ($"HID++ 1.0 error {(Hidpp10Error)m.Payload[1]} on sub-ID 0x{m.Address:X2} register 0x{m.Payload[0]:X2}", ConsoleColor.DarkYellow);
         if (HidppReceiver.TryParseConnectionEvent(m, out var connection))
             return ($"Receiver: {connection}", ConsoleColor.Cyan);
 
         if (!_byIndex.TryGetValue(m.SubId, out var feature))
-            return ($"unbekannter Feature-Index {m.SubId}", ConsoleColor.Gray);
+            return ($"unknown feature index {m.SubId}", ConsoleColor.Gray);
 
         if (m.SoftwareId != 0)
         {
-            var who = m.SoftwareId == _ownSoftwareId ? "eigene, verspätet" : "fremde – anderes Programm aktiv?";
-            return ($"Antwort {feature.Name} Funktion {m.FunctionId} (SW-ID {m.SoftwareId}: {who})", ConsoleColor.DarkYellow);
+            var who = m.SoftwareId == _ownSoftwareId ? "own, late" : "foreign – another program active?";
+            return ($"Response {feature.Name} function {m.FunctionId} (SW ID {m.SoftwareId}: {who})", ConsoleColor.DarkYellow);
         }
 
         switch (feature.FeatureId)
@@ -61,24 +61,24 @@ internal sealed class EventPrinter
                 _rawXYCount++;
                 _rawDx += dx;
                 _rawDy += dy;
-                return ($"Raw-XY dx={dx,4} dy={dy,4}   (Summe {_rawDx}, {_rawDy} aus {_rawXYCount} Events)", ConsoleColor.Magenta);
+                return ($"Raw XY dx={dx,4} dy={dy,4}   (sum {_rawDx}, {_rawDy} from {_rawXYCount} events)", ConsoleColor.Magenta);
 
             case FeatureIds.ReprogControlsV4 when ReprogControlsV4Feature.TryParseAnalytics(m, feature.Index, out var analytics):
-                return ("Analytics-Key-Event (von Options+ aktiviert): " +
-                        string.Join(", ", analytics.Select(a => $"{Name(a.ControlId)} {(a.Event == 1 ? "gedrückt" : "losgelassen")}")),
+                return ("Analytics key event (enabled by Options+): " +
+                        string.Join(", ", analytics.Select(a => $"{Name(a.ControlId)} {(a.Event == 1 ? "pressed" : "released")}")),
                     ConsoleColor.DarkCyan);
 
             case FeatureIds.UnifiedBattery when m.FunctionId == 0:
-                return ($"Akku-Event: {Describe(BatteryDecoder.DecodeUnified(m.Payload))}", ConsoleColor.Cyan);
+                return ($"Battery event: {Describe(BatteryDecoder.DecodeUnified(m.Payload))}", ConsoleColor.Cyan);
 
             case FeatureIds.BatteryVoltage when m.FunctionId == 0:
-                return ($"Akku-Event: {Describe(BatteryDecoder.DecodeVoltage(m.Payload))}", ConsoleColor.Cyan);
+                return ($"Battery event: {Describe(BatteryDecoder.DecodeVoltage(m.Payload))}", ConsoleColor.Cyan);
 
             case FeatureIds.BatteryStatus when m.FunctionId == 0:
-                return ($"Akku-Event: {Describe(BatteryDecoder.DecodeStatus(m.Payload))}", ConsoleColor.Cyan);
+                return ($"Battery event: {Describe(BatteryDecoder.DecodeStatus(m.Payload))}", ConsoleColor.Cyan);
 
             case FeatureIds.WirelessDeviceStatus when WirelessStatusEvent.TryParse(m, feature.Index, out var ws):
-                return ($"Wireless-Status: {ws}", ConsoleColor.Yellow);
+                return ($"Wireless status: {ws}", ConsoleColor.Yellow);
 
             default:
                 return ($"Event {feature.Name} (0x{feature.FeatureId:X4}) #{m.FunctionId}: {HidppMessage.ToHex(m.Payload)}", ConsoleColor.Gray);
@@ -94,9 +94,9 @@ internal sealed class EventPrinter
         _pressed.UnionWith(now);
 
         var parts = new List<string>();
-        if (down.Count > 0) parts.Add("GEDRÜCKT " + string.Join(", ", down.Select(Name)));
-        if (up.Count > 0) parts.Add("losgelassen " + string.Join(", ", up.Select(Name)));
-        if (parts.Count == 0) parts.Add(now.Count == 0 ? "alle Tasten losgelassen" : "gedrückt: " + string.Join(", ", now.Select(Name)));
+        if (down.Count > 0) parts.Add("PRESSED " + string.Join(", ", down.Select(Name)));
+        if (up.Count > 0) parts.Add("released " + string.Join(", ", up.Select(Name)));
+        if (parts.Count == 0) parts.Add(now.Count == 0 ? "all buttons released" : "pressed: " + string.Join(", ", now.Select(Name)));
         return string.Join(" · ", parts);
     }
 

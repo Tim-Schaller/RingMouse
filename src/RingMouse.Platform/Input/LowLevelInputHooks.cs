@@ -56,7 +56,7 @@ public sealed unsafe class LowLevelInputHooks : IDisposable
 
     public LowLevelInputHooks(ILogger? logger = null)
     {
-        if (s_instance is not null) throw new InvalidOperationException("Es darf nur eine Hook-Instanz geben.");
+        if (s_instance is not null) throw new InvalidOperationException("Only one hook instance is allowed.");
         s_instance = this;
         _logger = logger;
         _thread = new Thread(Run) { IsBackground = true, Name = "RingMouse LL-Hooks", Priority = ThreadPriority.Highest };
@@ -124,7 +124,7 @@ public sealed unsafe class LowLevelInputHooks : IDisposable
         {
             _mouseHook = Win32.SetWindowsHookEx(Win32.WH_MOUSE_LL, &MouseProc, module, 0);
             if (_mouseHook == IntPtr.Zero)
-                _logger?.LogWarning("WH_MOUSE_LL konnte nicht installiert werden (Win32 {Error})", Marshal.GetLastPInvokeError());
+                _logger?.LogWarning("Could not install WH_MOUSE_LL (Win32 {Error})", Marshal.GetLastPInvokeError());
         }
         else if (_mouseHandler is null)
         {
@@ -135,7 +135,7 @@ public sealed unsafe class LowLevelInputHooks : IDisposable
         {
             _keyboardHook = Win32.SetWindowsHookEx(Win32.WH_KEYBOARD_LL, &KeyboardProc, module, 0);
             if (_keyboardHook == IntPtr.Zero)
-                _logger?.LogWarning("WH_KEYBOARD_LL konnte nicht installiert werden (Win32 {Error})", Marshal.GetLastPInvokeError());
+                _logger?.LogWarning("Could not install WH_KEYBOARD_LL (Win32 {Error})", Marshal.GetLastPInvokeError());
         }
         else if (_keyboardHandler is null)
         {

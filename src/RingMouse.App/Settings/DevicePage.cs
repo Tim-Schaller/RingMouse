@@ -4,6 +4,7 @@ using RingMouse.App.Tray;
 using RingMouse.Core.Config;
 using RingMouse.Device;
 using RingMouse.HidPlusPlus.Features;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
@@ -20,9 +21,9 @@ internal sealed class DevicePage : UserControl
     {
         _ctx = ctx;
         var stack = new StackPanel { Margin = new Thickness(12) };
-        stack.Children.Add(Form.Heading("Geräte"));
+        stack.Children.Add(Form.Heading(L("Devices", "Geräte")));
         stack.Children.Add(_devices);
-        stack.Children.Add(Form.Buttons(Form.Button("Neu verbinden", () => _ctx.Host.ReconnectAll())));
+        stack.Children.Add(Form.Buttons(Form.Button(L("Reconnect", "Neu verbinden"), () => _ctx.Host.ReconnectAll())));
         stack.Children.Add(_details);
         stack.Children.Add(BuildBattery());
         Content = Form.Scroll(stack);
@@ -43,9 +44,12 @@ internal sealed class DevicePage : UserControl
         foreach (var d in _snapshots)
         {
             var battery = d.Battery is { } b ? $"{b.EffectivePercent?.ToString() ?? "?"} % ({TrayController.ChargeText(b.State)})" : "–";
-            _devices.Items.Add($"{d.Name} · {d.Connection} · {d.StateText} · Akku {battery} · DPI {d.Dpi?.ToString() ?? "–"}");
+            _devices.Items.Add(L($"{d.Name} · {d.Connection} · {d.StateText} · battery {battery} · DPI {d.Dpi?.ToString() ?? "–"}",
+                $"{d.Name} · {d.Connection} · {d.StateText} · Akku {battery} · DPI {d.Dpi?.ToString() ?? "–"}"));
         }
-        if (_snapshots.Count == 0) _devices.Items.Add("Kein Logitech-HID++-Gerät gefunden (Maus eingeschaltet und verbunden?)");
+        if (_snapshots.Count == 0)
+            _devices.Items.Add(L("No Logitech HID++ device found (is the mouse turned on and connected?)",
+                "Kein Logitech-HID++-Gerät gefunden (Maus eingeschaltet und verbunden?)"));
         var index = _snapshots.ToList().FindIndex(d => d.Key == keep);
         _devices.SelectedIndex = index >= 0 ? index : _snapshots.Count > 0 ? 0 : -1;
     }
@@ -58,22 +62,22 @@ internal sealed class DevicePage : UserControl
 
         var box = new StackPanel();
         box.Children.Add(Form.Row("Name", new TextBlock { Text = d.Name, FontWeight = FontWeights.SemiBold }));
-        box.Children.Add(Form.Row("Verbindung", new TextBlock { Text = $"{d.Connection}, HID++ {d.Protocol?.ToString() ?? "?"}, PID {d.ProductId:X4}" }));
-        box.Children.Add(Form.Row("Unit-ID", new TextBlock { Text = d.UnitId ?? "–" }));
+        box.Children.Add(Form.Row(L("Connection", "Verbindung"), new TextBlock { Text = $"{d.Connection}, HID++ {d.Protocol?.ToString() ?? "?"}, PID {d.ProductId:X4}" }));
+        box.Children.Add(Form.Row(L("Unit ID", "Unit-ID"), new TextBlock { Text = d.UnitId ?? "–" }));
         box.Children.Add(Form.Row("Status", new TextBlock { Text = d.StateText }));
-        box.Children.Add(Form.Row("Umgeleitet", new TextBlock
+        box.Children.Add(Form.Row(L("Diverted", "Umgeleitet"), new TextBlock
         {
             Text = d.DivertedControls.Count == 0 ? "–" : string.Join(", ", d.DivertedControls.Select(c => $"{ControlIds.Format(c)} {ControlIds.GetName(c)}")),
             TextWrapping = TextWrapping.Wrap,
         }));
         if (d.FailedControls.Count > 0)
-            box.Children.Add(Form.Row("Nicht umleitbar", new TextBlock { Text = string.Join(", ", d.FailedControls.Select(ControlIds.Format)) }));
+            box.Children.Add(Form.Row(L("Not divertable", "Nicht umleitbar"), new TextBlock { Text = string.Join(", ", d.FailedControls.Select(ControlIds.Format)) }));
         if (d.Battery is { } b)
         {
-            box.Children.Add(Form.Row("Akku", new TextBlock
+            box.Children.Add(Form.Row(L("Battery", "Akku"), new TextBlock
             {
                 Text = $"{b.EffectivePercent?.ToString() ?? "?"} % · {TrayController.ChargeText(b.State)}{(b.VoltageMillivolts is { } mv ? $" · {mv} mV" : "")}" +
-                       $" · Quelle {b.Source}{(d.BatteryTimestamp is { } t ? $" · {t:HH:mm:ss}" : "")}",
+                       $" · {L("source", "Quelle")} {b.Source}{(d.BatteryTimestamp is { } t ? $" · {t:HH:mm:ss}" : "")}",
             }));
         }
 
@@ -81,7 +85,7 @@ internal sealed class DevicePage : UserControl
         {
             var key = DeviceKey(d);
             var settings = _ctx.Config.Devices.GetValueOrDefault(key);
-            var choices = new List<(int? Value, string Text)> { (null, "nicht ändern") };
+            var choices = new List<(int? Value, string Text)> { (null, L("don't change", "nicht ändern")) };
             choices.AddRange(d.SupportedDpi.Where(v => v % 100 == 0 || d.SupportedDpi.Count < 40).Select(v => ((int?)v, $"{v} DPI")));
             var dpiBox = Form.Choice(choices, settings?.Dpi, v =>
             {
@@ -93,7 +97,7 @@ internal sealed class DevicePage : UserControl
                 s.Dpi = v;
                 _ctx.MarkDirty();
             });
-            var apply = Form.Button("Jetzt setzen", async () =>
+            var apply = Form.Button(L("Set now", "Jetzt setzen"), async () =>
             {
                 var value = _ctx.Config.Devices.GetValueOrDefault(key)?.Dpi;
                 if (value is { } dpi) await _ctx.Host.SetDpiNowAsync(d.Key, dpi);
@@ -102,11 +106,12 @@ internal sealed class DevicePage : UserControl
             row.Children.Add(dpiBox);
             row.Children.Add(new Border { Width = 8 });
             row.Children.Add(apply);
-            box.Children.Add(Form.Row("DPI (dauerhaft)", row,
-                $"Aktuell {d.Dpi?.ToString() ?? "?"} DPI. Wird nach jedem Reconnect erneut gesetzt (Config-Schlüssel \"{key}\")."));
+            box.Children.Add(Form.Row(L("DPI (persistent)", "DPI (dauerhaft)"), row,
+                L($"Currently {d.Dpi?.ToString() ?? "?"} DPI. Re-applied after every reconnect (config key \"{key}\").",
+                    $"Aktuell {d.Dpi?.ToString() ?? "?"} DPI. Wird nach jedem Reconnect erneut gesetzt (Config-Schlüssel \"{key}\").")));
         }
 
-        _details.Children.Add(Form.Group("Ausgewähltes Gerät", box));
+        _details.Children.Add(Form.Group(L("Selected device", "Ausgewähltes Gerät"), box));
     }
 
     private string DeviceKey(DeviceSnapshot d)
@@ -124,15 +129,17 @@ internal sealed class DevicePage : UserControl
                 .Select(x => int.TryParse(x.Trim('%'), out var n) ? n : 0).Where(n => n is > 0 and < 100).Distinct().OrderByDescending(n => n).ToList();
             _ctx.MarkDirty();
         });
-        var trayDevices = new List<(string? Value, string Text)> { (null, "automatisch (erstes Gerät mit Akku)") };
+        var trayDevices = new List<(string? Value, string Text)> { (null, L("automatic (first device with a battery)", "automatisch (erstes Gerät mit Akku)")) };
         trayDevices.AddRange(_ctx.Host.Devices.Select(d => ((string?)TrayController.ShortName(d.Name), d.Name)).DistinctBy(x => x.Item1));
         if (b.TrayDevice is { } current && trayDevices.All(t => t.Value != current)) trayDevices.Add((current, current));
 
-        return Form.Group("Akku-Benachrichtigungen",
-            Form.Row("Warnschwellen (%)", thresholds, "Jede Schwelle meldet sich einmal pro Entladezyklus (Standard: 20, 10, 5)."),
-            Form.Row("", Form.Check("Meldung \"Aufladen abgeschlossen\"", b.NotifyCharged, v => { b.NotifyCharged = v; _ctx.MarkDirty(); })),
-            Form.Row("Abfrage-Intervall (min)", Form.Number(b.PollMinutes, v => { b.PollMinutes = (int)v; _ctx.MarkDirty(); }, 1, 1440),
-                "Zusätzlich zu den Akku-Events der Maus."),
-            Form.Row("Gerät im Tray-Symbol", Form.Choice(trayDevices, b.TrayDevice, v => { b.TrayDevice = v; _ctx.MarkDirty(); })));
+        return Form.Group(L("Battery notifications", "Akku-Benachrichtigungen"),
+            Form.Row(L("Warning thresholds (%)", "Warnschwellen (%)"), thresholds,
+                L("Each threshold notifies once per discharge cycle (default: 20, 10, 5).", "Jede Schwelle meldet sich einmal pro Entladezyklus (Standard: 20, 10, 5).")),
+            Form.Row("", Form.Check(L("\"Charging complete\" notification", "Meldung \"Aufladen abgeschlossen\""), b.NotifyCharged,
+                v => { b.NotifyCharged = v; _ctx.MarkDirty(); })),
+            Form.Row(L("Poll interval (min)", "Abfrage-Intervall (min)"), Form.Number(b.PollMinutes, v => { b.PollMinutes = (int)v; _ctx.MarkDirty(); }, 1, 1440),
+                L("In addition to the mouse's battery events.", "Zusätzlich zu den Akku-Events der Maus.")),
+            Form.Row(L("Device in tray icon", "Gerät im Tray-Symbol"), Form.Choice(trayDevices, b.TrayDevice, v => { b.TrayDevice = v; _ctx.MarkDirty(); })));
     }
 }

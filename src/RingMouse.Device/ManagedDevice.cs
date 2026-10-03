@@ -134,7 +134,7 @@ internal sealed class ManagedDevice : IDisposable
             }
             catch (Exception ex)
             {
-                Log.LogError(ex, "{Device}: unerwarteter Fehler im Gerätezyklus", _name);
+                Log.LogError(ex, "{Device}: unexpected error in device cycle", _name);
             }
             finally
             {
@@ -157,14 +157,14 @@ internal sealed class ManagedDevice : IDisposable
             }
             catch (HidppException ex) when (ex is HidppTimeoutException or HidppTransportException)
             {
-                MarkUnreachable($"keine Antwort ({reason})");
+                MarkUnreachable($"no response ({reason})");
                 return;
             }
 
             if (!_protocol.Value.IsHidpp20)
             {
-                Log.LogInformation("{Device}: HID++ {Version} (1.0-Gerät) – wird nicht verwaltet", _name, _protocol);
-                MarkUnreachable("HID++ 1.0 nicht unterstützt");
+                Log.LogInformation("{Device}: HID++ {Version} (1.0 device) – not managed", _name, _protocol);
+                MarkUnreachable("HID++ 1.0 not supported");
                 return;
             }
 
@@ -177,7 +177,7 @@ internal sealed class ManagedDevice : IDisposable
                 await ResetDiversionsAsync(ct).ConfigureAwait(false);
                 SetState(DeviceState.Ready);
                 ArmTimers(config);
-                Log.LogInformation("{Device}: laut Config deaktiviert – Tasten nativ", _name);
+                Log.LogInformation("{Device}: disabled in config – buttons native", _name);
                 Publish();
                 return;
             }
@@ -194,7 +194,7 @@ internal sealed class ManagedDevice : IDisposable
             ArmTimers(config);
 
             Log.Log(wasReady ? LogLevel.Debug : LogLevel.Information,
-                "{Device} konfiguriert ({Reason}): umgeleitet [{Diverted}] Raw-XY [{RawXY}] fehlgeschlagen [{Failed}] DPI {Dpi} Akku {Battery}",
+                "{Device} configured ({Reason}): diverted [{Diverted}] raw XY [{RawXY}] failed [{Failed}] DPI {Dpi} battery {Battery}",
                 _name, reason, Format(_diverted), Format(_rawXY), Format(_failed), _dpi, _batteryReading?.Percent);
             Publish();
         }
@@ -205,7 +205,7 @@ internal sealed class ManagedDevice : IDisposable
         catch (HidppErrorException ex) when (_identityLoaded)
         {
             // Einzelne Einstellung abgelehnt – der Rest gilt; der Watchdog prüft weiter.
-            Log.LogWarning("{Device}: Gerät meldet Fehler bei der Konfiguration ({Reason}): {Error}", _name, reason, ex.Message);
+            Log.LogWarning("{Device}: device reported an error during configuration ({Reason}): {Error}", _name, reason, ex.Message);
             SetState(DeviceState.Ready);
             ArmTimers(_host.Configuration);
             Publish();
@@ -216,10 +216,10 @@ internal sealed class ManagedDevice : IDisposable
             // nicht als "bereit" stehen lassen, sondern per Watchdog erneut versuchen.
             var first = _state != DeviceState.Unreachable;
             if (ex is HidppErrorException)
-                Log.Log(first ? LogLevel.Warning : LogLevel.Debug, "{Device}: Erkennung fehlgeschlagen ({Reason}): {Error}", _name, reason, ex.Message);
+                Log.Log(first ? LogLevel.Warning : LogLevel.Debug, "{Device}: identification failed ({Reason}): {Error}", _name, reason, ex.Message);
             else
-                Log.Log(first ? LogLevel.Error : LogLevel.Debug, ex, "{Device}: Konfiguration fehlgeschlagen ({Reason})", _name, reason);
-            MarkUnreachable($"Konfiguration fehlgeschlagen: {ex.Message}");
+                Log.Log(first ? LogLevel.Error : LogLevel.Debug, ex, "{Device}: configuration failed ({Reason})", _name, reason);
+            MarkUnreachable($"configuration failed: {ex.Message}");
         }
         finally
         {
@@ -268,7 +268,7 @@ internal sealed class ManagedDevice : IDisposable
         _identityLoaded = true;
 
         Log.LogInformation(
-            "{Device} erkannt: {Connection}, HID++ {Protocol}, Typ {Kind}, Unit {Unit}, {Features} Features, Tasten [{Controls}], Akku {Battery}, DPI {DpiRange}",
+            "{Device} identified: {Connection}, HID++ {Protocol}, type {Kind}, unit {Unit}, {Features} features, buttons [{Controls}], battery {Battery}, DPI {DpiRange}",
             _name, Connection, _protocol, _kind, _unitId, features.Count,
             string.Join(", ", _controls.Select(c => $"{ControlIds.Format(c.ControlId)}{(c.IsDivertable ? "*" : "")}")),
             _battery?.Source.ToString() ?? "–",
@@ -351,9 +351,9 @@ internal sealed class ManagedDevice : IDisposable
                     {
                         await _reprog.ClearAllDiversionAsync(cid, ct).ConfigureAwait(false);
                         if (owned)
-                            Log.LogDebug("{Device}: Umleitung von {Cid} aufgehoben (nicht mehr belegt)", _name, ControlIds.Format(cid));
+                            Log.LogDebug("{Device}: diversion of {Cid} removed (no longer assigned)", _name, ControlIds.Format(cid));
                         else
-                            Log.LogInformation("{Device}: fremde Umleitung von {Cid} aufgehoben ({State})", _name, ControlIds.Format(cid), current.StateText);
+                            Log.LogInformation("{Device}: foreign diversion of {Cid} removed ({State})", _name, ControlIds.Format(cid), current.StateText);
                     }
                     if (owned)
                     {
@@ -371,7 +371,7 @@ internal sealed class ManagedDevice : IDisposable
             catch (HidppErrorException ex)
             {
                 if (wanted) failed.Add(cid);
-                Log.LogWarning("{Device}: Reporting für {Cid} nicht setzbar: {Error}", _name, ControlIds.Format(cid), ex.Message);
+                Log.LogWarning("{Device}: cannot set reporting for {Cid}: {Error}", _name, ControlIds.Format(cid), ex.Message);
             }
         }
 
@@ -405,7 +405,7 @@ internal sealed class ManagedDevice : IDisposable
         }
         catch (HidppErrorException ex)
         {
-            Log.LogDebug("{Device}: Akku nicht lesbar: {Error}", _name, ex.Message);
+            Log.LogDebug("{Device}: cannot read battery: {Error}", _name, ex.Message);
         }
     }
 
@@ -420,7 +420,7 @@ internal sealed class ManagedDevice : IDisposable
         }
         catch (HidppException ex) when (ex is HidppTimeoutException or HidppTransportException)
         {
-            MarkUnreachable("Akku-Abfrage ohne Antwort");
+            MarkUnreachable("no response to battery query");
         }
         finally
         {
@@ -434,7 +434,7 @@ internal sealed class ManagedDevice : IDisposable
     {
         if (_state != DeviceState.Ready)
         {
-            await ConfigureAsync("Watchdog: erneuter Versuch", ct).ConfigureAwait(false);
+            await ConfigureAsync("Watchdog: retry", ct).ConfigureAwait(false);
             return;
         }
 
@@ -450,7 +450,7 @@ internal sealed class ManagedDevice : IDisposable
                     var r = await _reprog.GetReportingAsync(cid, ct).ConfigureAwait(false);
                     if (!r.Diverted || r.RawXY != _rawXY.Contains(cid))
                     {
-                        problem = $"Umleitung von {ControlIds.Format(cid)} war weg ({r.StateText})";
+                        problem = $"diversion of {ControlIds.Format(cid)} was gone ({r.StateText})";
                         break;
                     }
                 }
@@ -462,7 +462,7 @@ internal sealed class ManagedDevice : IDisposable
                 if (target is { } t)
                 {
                     var current = (await _dpiFeature.GetDpiAsync(0, ct).ConfigureAwait(false)).CurrentDpi;
-                    if (current != DpiFeature.Snap(t, _supportedDpi)) problem = $"DPI war {current} statt {t}";
+                    if (current != DpiFeature.Snap(t, _supportedDpi)) problem = $"DPI was {current} instead of {t}";
                 }
             }
         }
@@ -472,7 +472,7 @@ internal sealed class ManagedDevice : IDisposable
         }
         catch (HidppErrorException ex)
         {
-            Log.LogDebug("{Device}: Watchdog-Fehler: {Error}", _name, ex.Message);
+            Log.LogDebug("{Device}: watchdog error: {Error}", _name, ex.Message);
         }
         finally
         {
@@ -481,13 +481,13 @@ internal sealed class ManagedDevice : IDisposable
 
         if (unreachable)
         {
-            MarkUnreachable("Watchdog ohne Antwort");
+            MarkUnreachable("no response to watchdog");
             return;
         }
 
         if (problem is not null)
         {
-            Log.LogWarning("{Device}: {Problem} – wird neu gesetzt (läuft Options+?)", _name, problem);
+            Log.LogWarning("{Device}: {Problem} – reapplying (is Options+ running?)", _name, problem);
             await ConfigureAsync("Watchdog", ct).ConfigureAwait(false);
         }
     }
@@ -521,18 +521,18 @@ internal sealed class ManagedDevice : IDisposable
 
             if (_wirelessIndex is { } wi && WirelessStatusEvent.TryParse(m, wi, out var status))
             {
-                Log.LogInformation("{Device}: Wireless-Status {Status}", _name, status);
+                Log.LogInformation("{Device}: wireless status {Status}", _name, status);
                 ReleaseAllButtons(timestamp);
                 RequestConfigure(TimeSpan.FromMilliseconds(250), "Reconnect (0x1D4B)");
                 return;
             }
 
             if (m.SoftwareId == 0 && _state != DeviceState.Ready)
-                RequestConfigure(TimeSpan.FromMilliseconds(200), "Lebenszeichen vom Gerät");
+                RequestConfigure(TimeSpan.FromMilliseconds(200), "sign of life from device");
         }
         catch (Exception ex)
         {
-            Log.LogError(ex, "{Device}: Fehler beim Verarbeiten von [{Message}]", _name, m);
+            Log.LogError(ex, "{Device}: error processing [{Message}]", _name, m);
         }
     }
 
@@ -583,7 +583,7 @@ internal sealed class ManagedDevice : IDisposable
         ReleaseAllButtons(System.Diagnostics.Stopwatch.GetTimestamp());
         if (wasReachable)
         {
-            Log.LogInformation("{Device} nicht erreichbar: {Reason}", _name, reason);
+            Log.LogInformation("{Device} unreachable: {Reason}", _name, reason);
             Publish();
         }
     }
@@ -599,7 +599,7 @@ internal sealed class ManagedDevice : IDisposable
             var snapped = DpiFeature.Snap(dpi, _supportedDpi);
             _dpi = await _dpiFeature.SetDpiAsync(snapped, 0, ct).ConfigureAwait(false);
             if (rememberForSession) _sessionDpi = snapped;
-            Log.LogInformation("{Device}: DPI auf {Dpi} gesetzt", _name, _dpi);
+            Log.LogInformation("{Device}: DPI set to {Dpi}", _name, _dpi);
         }
         finally
         {

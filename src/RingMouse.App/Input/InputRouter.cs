@@ -75,7 +75,7 @@ internal sealed class InputRouter
             case NoneAction:
                 break;
             default:
-                _actions.Enqueue(action, $"Taste {ControlIds.Format(e.ControlId)} ({profile.Name})", foreground);
+                _actions.Enqueue(action, $"Button {ControlIds.Format(e.ControlId)} ({profile.Name})", foreground);
                 break;
         }
     }
@@ -98,8 +98,8 @@ internal sealed class InputRouter
             if (!_elevationLogged.Add(fg.ProcessName)) return;
         }
         _log.LogWarning(
-            "Vordergrundfenster {Process} läuft mit höheren Rechten ({State}), RingMouse nicht – Windows blockiert Eingaben dorthin (UIPI). " +
-            "Abhilfe: uiAccess-Installation (tools\\install-uiaccess.ps1) oder Autostart-Aufgabe mit höchsten Rechten (nur für Admin-Konten).",
+            "Foreground window {Process} runs with higher rights ({State}), RingMouse does not – Windows blocks input to it (UIPI). " +
+            "Fix: uiAccess installation (tools\\install-uiaccess.ps1) or autostart task with highest privileges (admin accounts only).",
             fg.ProcessName, fg.Elevation);
         ElevationBlocked?.Invoke(fg.ProcessName);
     }
@@ -126,8 +126,8 @@ internal sealed class InputRouter
         _hooks.SetFallback(map.Count > 0 ? OnFallbackMouse : null);
         if (changed)
             _log.LogInformation(map.Count > 0
-                ? "Hook-Fallback aktiv für {Buttons} (HID++-Umleitung nicht möglich)"
-                : "Hook-Fallback inaktiv{Buttons}", string.Join(", ", map.Select(kv => $"{kv.Key}={ControlIds.Format(kv.Value)}")));
+                ? "Hook fallback active for {Buttons} (HID++ diversion not possible)"
+                : "Hook fallback inactive{Buttons}", string.Join(", ", map.Select(kv => $"{kv.Key}={ControlIds.Format(kv.Value)}")));
     }
 
     private bool OnFallbackMouse(in MouseHookEvent e)

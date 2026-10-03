@@ -4,7 +4,7 @@ namespace RingMouse.HidPlusPlus.Receivers;
 public sealed record ReceiverConnectionEvent(byte DeviceIndex, bool Connected, bool LinkEstablished, byte DeviceType, ushort WirelessPid, byte Protocol)
 {
     public override string ToString() =>
-        $"Index {DeviceIndex}: {(Connected ? (LinkEstablished ? "verbunden" : "gekoppelt, Funk getrennt") : "entkoppelt")} WPID {WirelessPid:X4} Typ {DeviceType}";
+        $"Index {DeviceIndex}: {(Connected ? (LinkEstablished ? "connected" : "paired, no wireless link") : "unpaired")} WPID {WirelessPid:X4} type {DeviceType}";
 }
 
 /// <summary>Zugriff auf einen Unifying-/Bolt-/Lightspeed-Receiver (HID++ 1.0, Device-Index 0xFF).</summary>

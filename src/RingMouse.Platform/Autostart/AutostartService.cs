@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using RingMouse.Core.Config;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Platform.Autostart;
 
@@ -50,7 +51,7 @@ public sealed class AutostartService(ILogger? logger = null)
         }
         catch (Exception ex)
         {
-            logger?.LogDebug(ex, "schtasks /Query fehlgeschlagen");
+            logger?.LogDebug(ex, "schtasks /Query failed");
             return null;
         }
     }
@@ -66,26 +67,28 @@ public sealed class AutostartService(ILogger? logger = null)
             {
                 case AutostartMode.Off:
                     RemoveRunEntry();
-                    if (TaskExists() != false && !DeleteTask()) return new(false, "Aufgabe konnte nicht gelöscht werden (UAC abgebrochen?).");
-                    return new(true, "Autostart deaktiviert.");
+                    if (TaskExists() != false && !DeleteTask())
+                        return new(false, L("Could not delete the scheduled task (UAC cancelled?).", "Aufgabe konnte nicht gelöscht werden (UAC abgebrochen?)."));
+                    return new(true, L("Autostart disabled.", "Autostart deaktiviert."));
 
                 case AutostartMode.Run:
                     SetRunEntry(exePath);
                     if (TaskExists() == true) DeleteTask();
-                    return new(true, "Autostart über HKCU\\...\\Run eingerichtet.");
+                    return new(true, L("Autostart set up via HKCU\\...\\Run.", "Autostart über HKCU\\...\\Run eingerichtet."));
 
                 case AutostartMode.Task:
-                    if (!CreateTask(exePath)) return new(false, "Aufgabe konnte nicht angelegt werden (UAC abgebrochen?).");
+                    if (!CreateTask(exePath))
+                        return new(false, L("Could not create the scheduled task (UAC cancelled?).", "Aufgabe konnte nicht angelegt werden (UAC abgebrochen?)."));
                     RemoveRunEntry();
-                    return new(true, "Autostart als Aufgabe mit höchsten Privilegien eingerichtet.");
+                    return new(true, L("Autostart set up as a scheduled task with highest privileges.", "Autostart als Aufgabe mit höchsten Privilegien eingerichtet."));
             }
         }
         catch (Exception ex)
         {
-            logger?.LogError(ex, "Autostart konnte nicht auf {Mode} gesetzt werden", mode);
+            logger?.LogError(ex, "Could not set autostart to {Mode}", mode);
             return new(false, ex.Message);
         }
-        return new(false, "Unbekannter Modus.");
+        return new(false, L("Unknown mode.", "Unbekannter Modus."));
     }
 
     public void SetRunEntry(string exePath)
@@ -125,11 +128,13 @@ public sealed class AutostartService(ILogger? logger = null)
         var user = SecurityElement.Escape(userId);
         var exe = SecurityElement.Escape(exePath);
         var dir = SecurityElement.Escape(Path.GetDirectoryName(exePath) ?? "");
+        var description = SecurityElement.Escape(L("RingMouse – Actions Ring and battery indicator for Logitech mice",
+            "RingMouse – Actions Ring und Akku-Anzeige für Logitech-Mäuse"));
         return $"""
             <?xml version="1.0" encoding="UTF-16"?>
             <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
               <RegistrationInfo>
-                <Description>RingMouse – Actions Ring und Akku-Anzeige für Logitech-Mäuse</Description>
+                <Description>{description}</Description>
                 <URI>\{TaskName}</URI>
               </RegistrationInfo>
               <Triggers>
@@ -200,7 +205,7 @@ public sealed class AutostartService(ILogger? logger = null)
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
-            logger?.LogInformation("UAC-Abfrage abgebrochen");
+            logger?.LogInformation("UAC prompt cancelled");
             return false;
         }
     }

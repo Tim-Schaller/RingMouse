@@ -33,7 +33,7 @@ public sealed class HidppChannel : IDisposable
     public HidppChannel(string name, IHidPort? shortPort, IHidPort? longPort)
     {
         if (shortPort is null && longPort is null)
-            throw new ArgumentException("Mindestens eine HID++-Collection wird benötigt.");
+            throw new ArgumentException("At least one HID++ collection is required.");
         Name = name;
         _shortPort = shortPort;
         _longPort = longPort;
@@ -81,7 +81,7 @@ public sealed class HidppChannel : IDisposable
     /// <summary>Sendet eine Nachricht ohne auf Antwort zu warten.</summary>
     public void Send(HidppMessage message)
     {
-        if (IsClosed) throw new HidppTransportException("Kanal ist geschlossen.", CloseReason);
+        if (IsClosed) throw new HidppTransportException("Channel is closed.", CloseReason);
 
         IHidPort port;
         HidppMessage wire;
@@ -94,11 +94,11 @@ public sealed class HidppChannel : IDisposable
         {
             if (_longPort is not null) (port, wire) = (_longPort, message);
             else if (message.FitsShort) (port, wire) = (_shortPort!, message.ToShort());
-            else throw new HidppTransportException("Gerät bietet keine Long-Report-Collection (0x11).");
+            else throw new HidppTransportException("Device has no long report collection (0x11).");
         }
         else
         {
-            throw new HidppTransportException($"Report-ID 0x{message.ReportId:X2} wird nicht unterstützt.");
+            throw new HidppTransportException($"Report ID 0x{message.ReportId:X2} is not supported.");
         }
 
         var bytes = wire.ToArray();
@@ -113,16 +113,16 @@ public sealed class HidppChannel : IDisposable
         }
         catch (IOException ex)
         {
-            throw new HidppTransportException($"Schreiben fehlgeschlagen: {ex.Message}", ex);
+            throw new HidppTransportException($"Write failed: {ex.Message}", ex);
         }
         catch (ObjectDisposedException ex)
         {
-            throw new HidppTransportException("Kanal ist geschlossen.", ex);
+            throw new HidppTransportException("Channel is closed.", ex);
         }
         catch (Exception ex) when (ex is not HidppException)
         {
             // z.B. Collection ohne Output-Report – für Aufrufer wie jeder andere Transportfehler
-            throw new HidppTransportException($"Schreiben fehlgeschlagen: {ex.Message}", ex);
+            throw new HidppTransportException($"Write failed: {ex.Message}", ex);
         }
     }
 
@@ -187,7 +187,7 @@ public sealed class HidppChannel : IDisposable
     }
 
     private void OnPortClosed(IHidPort port, Exception? error) =>
-        Close(error ?? new HidppTransportException($"Collection {port.Info.CollectionTag} wurde geschlossen."));
+        Close(error ?? new HidppTransportException($"Collection {port.Info.CollectionTag} was closed."));
 
     private void Close(Exception? reason)
     {
@@ -201,7 +201,7 @@ public sealed class HidppChannel : IDisposable
             _pending.Clear();
         }
         foreach (var p in pending)
-            p.Completion.TrySetException(new HidppTransportException("Kanal wurde geschlossen.", reason));
+            p.Completion.TrySetException(new HidppTransportException("Channel was closed.", reason));
 
         foreach (var port in Ports)
         {

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>RingMouse.Device</RootNamespace>
-    <Description>DeviceService: Geräte-Lebenszyklus, Tastenumleitung, Watchdog, Akku, DPI – robust gegen Schlafen/Reconnect.</Description>
+    <Description>DeviceService: device life cycle, button diversion, button detection, watchdog, battery, DPI – robust against sleep and reconnects.</Description>
   </PropertyGroup>
 
   <ItemGroup>

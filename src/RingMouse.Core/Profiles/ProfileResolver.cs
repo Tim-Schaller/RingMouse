@@ -17,8 +17,8 @@ public sealed class ResolvedProfile
         Buttons = buttons;
     }
 
-    /// <summary>"Standard" oder Name des aktiven Profils.</summary>
-    public string Name => _profile?.Name ?? "Standard";
+    /// <summary>"Default" oder Name des aktiven Profils.</summary>
+    public string Name => _profile?.Name ?? "Default";
 
     public bool IsDefault => _profile is null;
 

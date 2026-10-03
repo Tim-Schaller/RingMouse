@@ -303,7 +303,7 @@ public class DeviceServiceTests
         service.DeviceChanged += s => snapshots.Enqueue(s);
         service.Start();
 
-        await Until(() => log.Dump().Contains("HID-Enumeration hängt"), "Zeitlimit der Enumeration greift");
+        await Until(() => log.Dump().Contains("HID enumeration stuck"), "Zeitlimit der Enumeration greift");
         transport.EnumerateDelayMs = 0;
         await Until(() => snapshots.LastOrDefault()?.State == DeviceState.Ready, "Gerät kommt trotzdem hoch", 6000);
     }
@@ -326,8 +326,8 @@ public class DeviceServiceTests
         service.DeviceChanged += s => snapshots.Enqueue(s);
         service.Start();
 
-        await Until(() => log.Dump().Contains("Geräteverwaltung hängt"), "Wächter erkennt den Stillstand", 5000);
-        await Until(() => log.Dump().Contains("Durchlauf abgebrochen"), "Durchlauf wird abgebrochen", 5000);
+        await Until(() => log.Dump().Contains("Device management stuck"), "Wächter erkennt den Stillstand", 5000);
+        await Until(() => log.Dump().Contains("iteration cancelled"), "Durchlauf wird abgebrochen", 5000);
         transport.EnumerateDelayMs = 0;
         await Until(() => snapshots.LastOrDefault()?.State == DeviceState.Ready, "danach normal weiter", 8000);
     }

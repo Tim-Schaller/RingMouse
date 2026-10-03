@@ -36,7 +36,7 @@ internal sealed class AppLogging : IDisposable
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
         Factory = new SerilogLoggerFactory(Log.Logger, dispose: false);
-        StartupTrace.Write($"Logger: Stufe {_level.MinimumLevel}, Information aktiv={Log.Logger.IsEnabled(LogEventLevel.Information)}");
+        StartupTrace.Write($"Logger: level {_level.MinimumLevel}, Information enabled={Log.Logger.IsEnabled(LogEventLevel.Information)}");
     }
 
     /// <summary>Prüft, ob Einträge tatsächlich in der Datei landen (für das Startprotokoll).</summary>
@@ -44,9 +44,9 @@ internal sealed class AppLogging : IDisposable
     {
         var file = Path.Combine(AppPaths.LogDirectory, $"ringmouse-{DateTime.Now:yyyyMMdd}.log");
         var before = File.Exists(file) ? new FileInfo(file).Length : -1;
-        Log.Logger.Information("Protokoll gestartet (PID {Pid})", Environment.ProcessId);
+        Log.Logger.Information("Log started (PID {Pid})", Environment.ProcessId);
         var after = File.Exists(file) ? new FileInfo(file).Length : -1;
-        StartupTrace.Write($"Protokoll-Test: {file} {before} → {after} Byte ({(after > before ? "schreibt" : "SCHREIBT NICHT")})");
+        StartupTrace.Write($"Log test: {file} {before} → {after} bytes ({(after > before ? "writing" : "NOT WRITING")})");
     }
 
     public ILoggerFactory Factory { get; }
@@ -80,11 +80,11 @@ internal sealed class AppLogging : IDisposable
                             flushToDiskInterval: TimeSpan.FromSeconds(2),
                             outputTemplate: "{Timestamp:HH:mm:ss.fff} {Message:l}{NewLine}")
                         .CreateLogger();
-                    _raw.Information("--- Raw-HID++-Log gestartet ---");
+                    _raw.Information("--- Raw HID++ log started ---");
                 }
                 else if (!value && _raw is not null)
                 {
-                    _raw.Information("--- Raw-HID++-Log beendet ---");
+                    _raw.Information("--- Raw HID++ log stopped ---");
                     _raw.Dispose();
                     _raw = null;
                 }

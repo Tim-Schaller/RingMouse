@@ -1,8 +1,12 @@
 using System.Text;
+using RingMouse.Core.Config;
+using RingMouse.Core.Localization;
 using RingMouse.HidPlusPlus;
 using RingMouse.Probe;
 
 Console.OutputEncoding = Encoding.UTF8;
+// Entwicklerwerkzeug: immer englisch, auch die Zustandstexte aus dem DeviceService (watch)
+Lang.Apply(UiLanguage.English);
 
 ProbeOptions options;
 try
@@ -48,7 +52,7 @@ try
         "monitor" => Commands.MonitorAsync,
         "reset" => Commands.ResetAsync,
         "dump" => Commands.DumpAsync,
-        _ => throw new ProbeException($"Unbekannter Befehl: {options.Command} (siehe ringmouse-probe --help)"),
+        _ => throw new ProbeException($"Unknown command: {options.Command} (see ringmouse-probe --help)"),
     };
 
     using var session = await ProbeSession.OpenAsync(options, cts.Token);
@@ -66,7 +70,7 @@ catch (ProbeException ex)
 catch (HidppTimeoutException ex)
 {
     ConsoleOut.Error(ex.Message);
-    ConsoleOut.Hint("Tipp: Die Maus schläft evtl. – kurz bewegen und erneut versuchen, ggf. --timeout erhöhen.");
+    ConsoleOut.Hint("Tip: the mouse may be asleep – move it briefly and try again, or increase --timeout.");
     return 3;
 }
 catch (HidppException ex)

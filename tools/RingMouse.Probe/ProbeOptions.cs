@@ -36,7 +36,7 @@ internal sealed class ProbeOptions
         for (; i < args.Length; i++)
         {
             var a = args[i];
-            string Next() => i + 1 < args.Length ? args[++i] : throw new ProbeException($"Option {a} erwartet einen Wert.");
+            string Next() => i + 1 < args.Length ? args[++i] : throw new ProbeException($"Option {a} expects a value.");
 
             switch (a.ToLowerInvariant())
             {
@@ -46,12 +46,12 @@ internal sealed class ProbeOptions
                 case "--index":
                     o.ReceiverIndex = byte.TryParse(Next(), out var idx) && idx is >= 1 and <= 6
                         ? idx
-                        : throw new ProbeException("--index erwartet 1–6.");
+                        : throw new ProbeException("--index expects 1–6.");
                     break;
                 case "--swid":
                     o.SoftwareId = byte.TryParse(Next(), out var sw) && sw is >= 1 and <= 15
                         ? sw
-                        : throw new ProbeException("--swid erwartet 1–15.");
+                        : throw new ProbeException("--swid expects 1–15.");
                     break;
                 case "--raw":
                     o.Raw = true;
@@ -62,13 +62,13 @@ internal sealed class ProbeOptions
                 case "--timeout":
                     o.TimeoutMs = int.TryParse(Next(), out var t) && t is >= 100 and <= 30000
                         ? t
-                        : throw new ProbeException("--timeout erwartet 100–30000 ms.");
+                        : throw new ProbeException("--timeout expects 100–30000 ms.");
                     break;
                 case "--cid":
                     foreach (var part in Next().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     {
                         if (!RingMouse.HidPlusPlus.Features.ControlIds.TryParse(part, out var cid))
-                            throw new ProbeException($"Ungültige CID: {part} (Beispiel: 0x00FD)");
+                            throw new ProbeException($"Invalid CID: {part} (example: 0x00FD)");
                         o.ControlIds.Add(cid);
                     }
                     break;
@@ -81,7 +81,7 @@ internal sealed class ProbeOptions
                 case "--set":
                     o.SetDpi = int.TryParse(Next(), out var dpi) && dpi is >= 50 and <= 50000
                         ? dpi
-                        : throw new ProbeException("--set erwartet einen DPI-Wert.");
+                        : throw new ProbeException("--set expects a DPI value.");
                     break;
                 case "--no-ping":
                     o.NoPing = true;
@@ -95,51 +95,51 @@ internal sealed class ProbeOptions
                 case "--duration":
                     o.DurationSeconds = int.TryParse(Next(), out var sec) && sec is >= 1 and <= 86400
                         ? sec
-                        : throw new ProbeException("--duration erwartet Sekunden (1–86400).");
+                        : throw new ProbeException("--duration expects seconds (1–86400).");
                     break;
                 case "-h" or "--help" or "/?":
                     o.Command = "help";
                     break;
                 default:
-                    throw new ProbeException($"Unbekannte Option: {a}");
+                    throw new ProbeException($"Unknown option: {a}");
             }
         }
         return o;
     }
 
     public const string Usage = """
-        ringmouse-probe – HID++-Discovery für Logitech-Geräte (ohne Treiber, ohne Adminrechte)
+        ringmouse-probe – HID++ discovery for Logitech devices (no driver, no admin rights)
 
-        Aufruf: ringmouse-probe <befehl> [optionen]
+        Usage: ringmouse-probe <command> [options]
 
-        Befehle:
-          list                     Alle Logitech-HID-Collections (VID 046D): Usage Page/Usage, Report-IDs/-Längen,
-                                   HID++-Erkennung, Verbindungsart (BLE/USB/Receiver) und Device-Index
-          info                     Protokollversion, Name, Typ, Unit-ID, Seriennummer, Firmware
-          features                 Feature-Tabelle (Root 0x0000 + FeatureSet 0x0001) mit Index und Version
-          controls                 Tasten über REPROG_CONTROLS_V4 (0x1B04): CID, TID, Flags, Reporting-Status
-          battery                  Akkustand (0x1004 → 0x1001 → 0x1000)
-          dpi [--set N]            Sensor-DPI lesen und optional setzen (0x2201)
-          live --cid 0x00FD[,..]   Taste(n) umleiten und Events roh + dekodiert anzeigen (Strg+C beendet und
-               [--rawxy] | --all   stellt den vorherigen Zustand wieder her); --all = alle umleitbaren Tasten
-          monitor                  Nur mitlesen: alle HID++-Reports des Geräts anzeigen (auch fremde Antworten)
-          reset [--cid ..]         Umleitungen, Remaps und Analytics-Events auf nativ zurücksetzen (Reste von Options+)
-          dump                     info + features + controls + battery + dpi in einem Rutsch
-          watch [--cid ..]         DeviceService wie in der App: Reconnect/Standby/Watchdog/Akku-Events live.
-                [--rawxy] [--takeover] Ohne --cid nur lesend; mit --cid werden diese Tasten umgeleitet.
-                                   --takeover: zusätzlich fremde Umleitungen aufheben + Analytics aus (wie die App)
+        Commands:
+          list                     All Logitech HID collections (VID 046D): usage page/usage, report IDs/lengths,
+                                   HID++ detection, connection type (BLE/USB/receiver) and device index
+          info                     Protocol version, name, type, unit ID, serial number, firmware
+          features                 Feature table (Root 0x0000 + FeatureSet 0x0001) with index and version
+          controls                 Buttons via REPROG_CONTROLS_V4 (0x1B04): CID, TID, flags, reporting state
+          battery                  Battery level (0x1004 → 0x1001 → 0x1000)
+          dpi [--set N]            Read sensor DPI and optionally set it (0x2201)
+          live --cid 0x00FD[,..]   Divert button(s) and show events raw + decoded (Ctrl+C quits and
+               [--rawxy] | --all   restores the previous state); --all = all divertable buttons
+          monitor                  Listen only: show all HID++ reports of the device (including foreign responses)
+          reset [--cid ..]         Reset diversions, remaps and analytics events to native (leftovers from Options+)
+          dump                     info + features + controls + battery + dpi in one go
+          watch [--cid ..]         DeviceService as in the app: reconnect/standby/watchdog/battery events live.
+                [--rawxy] [--takeover] Without --cid read-only; with --cid these buttons are diverted.
+                                   --takeover: also clear foreign diversions + analytics off (like the app)
 
-        Optionen:
-          --device <n|PID>         Gerät aus 'list' (laufende Nummer) oder Produkt-ID, z.B. B020
-          --index <1-6>            Gerät am Receiver (Standard: erstes antwortende)
-          --swid <1-15>            eigene Software-ID (Standard 10 = 0xA)
-          --timeout <ms>           Antwort-Timeout (Standard 2000)
-          --raw                    alle gesendeten/empfangenen Frames ausgeben
-          --record <datei.jsonl>   alle Frames aufzeichnen (Fixtures für Unit-Tests)
-          --duration <s>           live/monitor/watch nach s Sekunden automatisch beenden
-          --verbose                watch: auch Debug-Meldungen
+        Options:
+          --device <n|PID>         Device from 'list' (sequential number) or product ID, e.g. B020
+          --index <1-6>            Device on the receiver (default: first one that responds)
+          --swid <1-15>            Own software ID (default 10 = 0xA)
+          --timeout <ms>           Response timeout (default 2000)
+          --raw                    Print all sent/received frames
+          --record <file.jsonl>    Record all frames (fixtures for unit tests)
+          --duration <s>           End live/monitor/watch automatically after s seconds
+          --verbose                watch: debug messages too
 
-        Tipp: Options+ vorher beenden (Tray → Beenden bzw. Dienste/Prozesse logioptionsplus_agent,
-        LogiPluginService), sonst überschreibt es Umleitungen.
+        Tip: quit Options+ first (tray → Quit, or the services/processes logioptionsplus_agent,
+        LogiPluginService), otherwise it overwrites diversions.
         """;
 }

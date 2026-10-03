@@ -22,7 +22,7 @@ public sealed record HidppEndpoint(
         HidBusType.BluetoothLe => "Bluetooth LE",
         HidBusType.BluetoothClassic => "Bluetooth",
         HidBusType.Usb => "USB",
-        _ => "unbekannt",
+        _ => "unknown",
     };
 
     /// <summary>

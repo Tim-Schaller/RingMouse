@@ -35,8 +35,8 @@ internal static class StartupTrace
     public static void WriteEnvironment(string[] args)
     {
         using var self = Process.GetCurrentProcess();
-        Write($"Start \"{string.Join(' ', args)}\" · {Environment.UserDomainName}\\{Environment.UserName} · Sitzung {self.SessionId} · " +
-              $"Priorität {self.PriorityClass} · APPDATA={Environment.GetEnvironmentVariable("APPDATA")} · " +
+        Write($"Start \"{string.Join(' ', args)}\" · {Environment.UserDomainName}\\{Environment.UserName} · session {self.SessionId} · " +
+              $"priority {self.PriorityClass} · APPDATA={Environment.GetEnvironmentVariable("APPDATA")} · " +
               $"AppData(API)={Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)} · TEMP={Path.GetTempPath()} · " +
               $"RINGMOUSE_HOME={Environment.GetEnvironmentVariable("RINGMOUSE_HOME") ?? "–"} · CWD={Environment.CurrentDirectory}");
     }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Core.Input;
 
@@ -50,7 +51,7 @@ public static class KeyChordParser
         error = null;
         if (string.IsNullOrWhiteSpace(text))
         {
-            error = "Leere Tastenkombination.";
+            error = L("Empty keyboard shortcut.", "Leere Tastenkombination.");
             return false;
         }
 
@@ -63,7 +64,8 @@ public static class KeyChordParser
             {
                 if (!KeyNames.TryModifier(chord[i], out var mods))
                 {
-                    error = $"\"{chord[i]}\" ist keine Zusatztaste (Ctrl/Shift/Alt/Win) – in \"{text}\".";
+                    error = L($"\"{chord[i]}\" is not a modifier key (Ctrl/Shift/Alt/Win) – in \"{text}\".",
+                        $"\"{chord[i]}\" ist keine Zusatztaste (Ctrl/Shift/Alt/Win) – in \"{text}\".");
                     return false;
                 }
                 foreach (var m in mods) if (!modifiers.Contains(m)) modifiers.Add(m);
@@ -81,14 +83,14 @@ public static class KeyChordParser
             }
             else
             {
-                error = $"Unbekannte Taste \"{last}\" in \"{text}\".";
+                error = L($"Unknown key \"{last}\" in \"{text}\".", $"Unbekannte Taste \"{last}\" in \"{text}\".");
                 return false;
             }
         }
 
         if (result.Count == 0)
         {
-            error = "Leere Tastenkombination.";
+            error = L("Empty keyboard shortcut.", "Leere Tastenkombination.");
             return false;
         }
         strokes = result;

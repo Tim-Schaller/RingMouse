@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>RingMouse.Actions</RootNamespace>
-    <Description>Aktions-Engine: Tastenkürzel, Medientasten, Programme/URLs, Textbausteine, PowerShell, Screenshot, System, DPI, App-Hotkeys, Sequenzen.</Description>
+    <Description>Action engine: keyboard shortcuts, media keys, programs/URLs, text snippets, PowerShell, screenshot, system commands, DPI, app hotkeys, sequences.</Description>
   </PropertyGroup>
 
   <ItemGroup>

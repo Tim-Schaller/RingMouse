@@ -9,6 +9,7 @@ using RingMouse.Platform.Clipboard;
 using RingMouse.Platform.Input;
 using RingMouse.Platform.Processes;
 using RingMouse.Platform.Windows;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Actions;
 
@@ -43,7 +44,7 @@ public sealed class ActionExecutor : IDisposable
         _logger = logger ?? NullLogger.Instance;
         _dpi = dpi;
         _openSettings = openSettings;
-        _thread = new Thread(Run) { IsBackground = true, Name = "RingMouse Aktionen" };
+        _thread = new Thread(Run) { IsBackground = true, Name = "RingMouse actions" };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
     }
@@ -58,7 +59,7 @@ public sealed class ActionExecutor : IDisposable
     {
         if (DryRun)
         {
-            _logger.LogInformation("Aktion {Action} ({Source}) nicht ausgeführt (Trockenlauf)", action.Describe(), source);
+            _logger.LogInformation("Action {Action} ({Source}) not executed (dry run)", action.Describe(), source);
             return;
         }
         if (!_queue.IsAddingCompleted) _queue.Add((action, source, target ?? ForegroundWindow.Capture()));
@@ -74,7 +75,7 @@ public sealed class ActionExecutor : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Zwischenablage nicht verfügbar");
+            _logger.LogWarning(ex, "Clipboard not available");
         }
 
         foreach (var (action, source, target) in _queue.GetConsumingEnumerable())
@@ -83,12 +84,12 @@ public sealed class ActionExecutor : IDisposable
             try
             {
                 Execute(action, source, target);
-                _logger.LogInformation("Aktion {Action} ({Source}) → {Target} in {Ms} ms", action.Describe(), source,
+                _logger.LogInformation("Action {Action} ({Source}) → {Target} in {Ms} ms", action.Describe(), source,
                     target.ProcessName ?? "?", sw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Aktion {Action} ({Source}) fehlgeschlagen", action.Describe(), source);
+                _logger.LogError(ex, "Action {Action} ({Source}) failed", action.Describe(), source);
                 Failed?.Invoke(new ActionFailure(source, $"{action.Describe()}: {ex.Message}"));
             }
         }
@@ -102,14 +103,15 @@ public sealed class ActionExecutor : IDisposable
             // Pro Zielprozess nur einmal melden – sonst käme bei jeder Aktion in diesem Fenster eine Tray-Meldung.
             if (_uipiNotified.Add(target.ProcessName ?? "?"))
             {
-                _logger.LogWarning("Ziel {Process} läuft mit Adminrechten ({Elevation}) – Windows blockiert Eingaben von RingMouse (UIPI)",
+                _logger.LogWarning("Target {Process} runs with admin rights ({Elevation}) – Windows blocks input from RingMouse (UIPI)",
                     target.ProcessName, target.Elevation);
                 Failed?.Invoke(new ActionFailure(source,
-                    $"{target.ProcessName} läuft mit Adminrechten – Windows blockiert die Eingabe (UIPI). Abhilfe: uiAccess-Installation (README)."));
+                    L($"{target.ProcessName} runs with admin rights – Windows blocks the input (UIPI). Fix: uiAccess installation (README).",
+                        $"{target.ProcessName} läuft mit Adminrechten – Windows blockiert die Eingabe (UIPI). Abhilfe: uiAccess-Installation (README).")));
             }
             else
             {
-                _logger.LogDebug("Ziel {Process} läuft mit Adminrechten – Eingabe wird vermutlich blockiert (UIPI)", target.ProcessName);
+                _logger.LogDebug("Target {Process} runs with admin rights – input is probably blocked (UIPI)", target.ProcessName);
             }
         }
 
@@ -142,7 +144,7 @@ public sealed class ActionExecutor : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "ms-screenclip: nicht verfügbar – sende Win+Shift+S");
+                    _logger.LogDebug(ex, "ms-screenclip: not available – sending Win+Shift+S");
                     InputInjector.SendKeyStrokes(KeyChordParser.Parse("Win+Shift+S"));
                 }
                 break;
@@ -153,7 +155,7 @@ public sealed class ActionExecutor : IDisposable
 
             case DpiAction d when _dpi is not null:
                 var dpi = (d.Values.Count == 1 ? _dpi.SetDpiAsync(d.Values[0]) : _dpi.CycleDpiAsync(d.Values)).GetAwaiter().GetResult();
-                if (dpi is null) Failed?.Invoke(new ActionFailure(source, "Keine Maus mit einstellbarer DPI erreichbar."));
+                if (dpi is null) Failed?.Invoke(new ActionFailure(source, L("No mouse with adjustable DPI is reachable.", "Keine Maus mit einstellbarer DPI erreichbar.")));
                 break;
 
             case AppKeysAction a:
@@ -180,7 +182,7 @@ public sealed class ActionExecutor : IDisposable
                 break;
 
             default:
-                throw new NotSupportedException($"Aktionstyp {action.TypeName} wird hier nicht unterstützt.");
+                throw new NotSupportedException(L($"Action type {action.TypeName} is not supported here.", $"Aktionstyp {action.TypeName} wird hier nicht unterstützt."));
         }
     }
 
@@ -201,7 +203,7 @@ public sealed class ActionExecutor : IDisposable
         var snapshot = _clipboard.Snapshot();
         if (!_clipboard.SetText(text))
         {
-            _logger.LogWarning("Zwischenablage belegt – tippe den Text stattdessen");
+            _logger.LogWarning("Clipboard busy – typing the text instead");
             InputInjector.SendText(text);
             return;
         }
@@ -210,7 +212,7 @@ public sealed class ActionExecutor : IDisposable
         InputInjector.SendKeyStrokes(KeyChordParser.Parse("Ctrl+V"));
         Thread.Sleep(PasteRestoreDelayMs); // Ziel-App liest die Zwischenablage asynchron
         if (Native.ClipboardSequence() == sequence) _clipboard.Restore(snapshot);
-        else _logger.LogDebug("Zwischenablage wurde inzwischen geändert – keine Wiederherstellung");
+        else _logger.LogDebug("Clipboard changed in the meantime – not restoring it");
     }
 
     private void RunPowerShell(PowerShellAction ps, string source)
@@ -239,13 +241,14 @@ public sealed class ActionExecutor : IDisposable
                     await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
                     if (process.ExitCode != 0)
                     {
-                        _logger.LogWarning("PowerShell ({Source}) beendet mit Exit-Code {Code}", source, process.ExitCode);
-                        Failed?.Invoke(new ActionFailure(source, $"PowerShell beendet mit Exit-Code {process.ExitCode}."));
+                        _logger.LogWarning("PowerShell ({Source}) exited with exit code {Code}", source, process.ExitCode);
+                        Failed?.Invoke(new ActionFailure(source,
+                            L($"PowerShell exited with exit code {process.ExitCode}.", $"PowerShell beendet mit Exit-Code {process.ExitCode}.")));
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    _logger.LogWarning("PowerShell ({Source}) läuft seit 10 Minuten – wird nicht weiter überwacht", source);
+                    _logger.LogWarning("PowerShell ({Source}) has been running for 10 minutes – no longer monitoring it", source);
                 }
             }
         });
@@ -256,7 +259,7 @@ public sealed class ActionExecutor : IDisposable
         switch (command)
         {
             case SystemCommand.Lock:
-                if (!SystemCommands.LockWorkstation()) throw new InvalidOperationException("LockWorkStation fehlgeschlagen.");
+                if (!SystemCommands.LockWorkstation()) throw new InvalidOperationException(L("LockWorkStation failed.", "LockWorkStation fehlgeschlagen."));
                 break;
             case SystemCommand.EmojiPanel:
                 InputInjector.SendKeyStrokes(KeyChordParser.Parse("Win+."));
@@ -297,7 +300,7 @@ public sealed class ActionExecutor : IDisposable
         }
         if (window is null)
         {
-            Failed?.Invoke(new ActionFailure(source, $"{a.Process} läuft nicht."));
+            Failed?.Invoke(new ActionFailure(source, L($"{a.Process} is not running.", $"{a.Process} läuft nicht.")));
             return;
         }
 
@@ -305,7 +308,7 @@ public sealed class ActionExecutor : IDisposable
         var alreadyForeground = previous == window.Handle;
         if (!alreadyForeground && !WindowActivator.Activate(window.Handle, TimeSpan.FromMilliseconds(800)))
         {
-            Failed?.Invoke(new ActionFailure(source, $"Fenster von {a.Process} ließ sich nicht aktivieren."));
+            Failed?.Invoke(new ActionFailure(source, L($"Could not activate the window of {a.Process}.", $"Fenster von {a.Process} ließ sich nicht aktivieren.")));
             return;
         }
 

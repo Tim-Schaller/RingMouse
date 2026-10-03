@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
+using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Core.Config;
 
@@ -37,7 +38,7 @@ public static class ConfigSerializer
     public static RingMouseConfig Deserialize(string json)
     {
         var config = JsonSerializer.Deserialize<RingMouseConfig>(json, Options)
-                     ?? throw new JsonException("Die Config ist leer.");
+                     ?? throw new JsonException(L("The config is empty.", "Die Config ist leer."));
         return Normalize(config);
     }
 
@@ -102,7 +103,7 @@ public static class ConfigSerializer
         if (node is JsonObject root)
         {
             root.Insert(0, "$schema", "https://json-schema.org/draft/2020-12/schema");
-            root.Insert(1, "title", "RingMouse-Konfiguration");
+            root.Insert(1, "title", "RingMouse configuration");
         }
         return node.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     }
