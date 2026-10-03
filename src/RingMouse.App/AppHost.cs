@@ -12,6 +12,7 @@ using RingMouse.App.Settings;
 using RingMouse.App.Tray;
 using RingMouse.Core;
 using RingMouse.Core.Config;
+using RingMouse.Core.Import;
 using RingMouse.Core.Localization;
 using RingMouse.Core.Profiles;
 using RingMouse.Core.State;
@@ -51,6 +52,12 @@ internal interface ISettingsHost
 
     /// <summary>Sauber beenden und neu starten (Einstellungen öffnen sich danach wieder).</summary>
     void Restart();
+
+    /// <summary>
+    /// Importierte Teile in die gespeicherte Config übernehmen: prüfen, Sicherung anlegen, speichern.
+    /// Liefert den Pfad der Sicherung; wirft eine InvalidDataException, wenn das Ergebnis ungültig wäre.
+    /// </summary>
+    string? ApplyImport(RingMouseConfig source, ImportParts parts);
 }
 
 /// <summary>Composition Root: verdrahtet Config, Geräte, Ring, Aktionen, Tray und Systemereignisse.</summary>
@@ -525,6 +532,17 @@ internal sealed class AppHost : ISettingsHost
         _log.LogInformation("Restart requested");
         RestartRequested = true;
         Exit();
+    }
+
+    public string? ApplyImport(RingMouseConfig source, ImportParts parts)
+    {
+        var merged = ConfigMerge.Apply(_configStore.Current, source, parts);
+        var errors = ConfigValidator.Validate(merged).Where(i => i.Severity == IssueSeverity.Error).ToList();
+        if (errors.Count > 0) throw new System.IO.InvalidDataException(string.Join("\n", errors.Take(5)));
+        var backup = _configStore.CreateBackup();
+        _configStore.Save(merged);
+        _log.LogInformation("Import applied ({Parts}), backup {Backup}", parts, backup);
+        return backup;
     }
 
     private void SetRawLog(bool enabled)

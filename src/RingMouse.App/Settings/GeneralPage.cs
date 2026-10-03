@@ -3,18 +3,22 @@ using System.Windows.Controls;
 using RingMouse.Core;
 using RingMouse.Core.Config;
 using RingMouse.Platform;
+using RingMouse.Platform.Import;
 using RingMouse.Platform.Windows;
 using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
 
-/// <summary>Autostart, Verhalten, Logs und Diagnose.</summary>
+/// <summary>Befehle des Einstellungsfensters, die auf der Seite "Allgemein" ausgelöst werden.</summary>
+internal sealed record GeneralPageCommands(Action ResetToDefaults, Action SaveAndRestart, Action Export, Action Import, Action ImportOptionsPlus);
+
+/// <summary>Sprache, Autostart, Verhalten, Import/Export, Dateien und Diagnose.</summary>
 internal sealed class GeneralPage : UserControl
 {
     private readonly SettingsContext _ctx;
     private readonly TextBlock _autostartStatus = Form.Hint("");
 
-    public GeneralPage(SettingsContext ctx, Action resetToDefaults, Action saveAndRestart)
+    public GeneralPage(SettingsContext ctx, GeneralPageCommands commands)
     {
         _ctx = ctx;
         var g = ctx.Config.General;
@@ -28,7 +32,7 @@ internal sealed class GeneralPage : UserControl
                  (UiLanguage.German, "Deutsch")],
                 g.Language, v => { g.Language = v; ctx.MarkDirty(); })),
             Form.Hint(L("A new language takes effect after RingMouse restarts.", "Eine neue Sprache gilt nach einem Neustart von RingMouse.")),
-            Form.Buttons(Form.Button(L("Save and restart", "Speichern und neu starten"), saveAndRestart))));
+            Form.Buttons(Form.Button(L("Save and restart", "Speichern und neu starten"), commands.SaveAndRestart))));
 
         // Autostart
         var off = new RadioButton { Content = L("Don't start automatically", "Nicht automatisch starten"), GroupName = "autostart", IsChecked = g.Autostart == AutostartMode.Off };
@@ -78,7 +82,22 @@ internal sealed class GeneralPage : UserControl
                 Form.Button(L("Open config file", "Config-Datei öffnen"), () => ctx.Host.OpenConfigFile()),
                 Form.Button(L("Open folder", "Ordner öffnen"), () => ctx.Host.OpenConfigFolder()),
                 Form.Button(L("Open logs", "Logs öffnen"), () => ctx.Host.OpenLogs()),
-                Form.Button(L("Restore defaults …", "Standard wiederherstellen …"), resetToDefaults))));
+                Form.Button(L("Restore defaults …", "Standard wiederherstellen …"), commands.ResetToDefaults))));
+
+        // Import & Export
+        var importButtons = new List<Button>
+        {
+            Form.Button(L("Export …", "Exportieren …"), commands.Export),
+            Form.Button(L("Import …", "Importieren …"), commands.Import),
+        };
+        if (OptionsPlusFiles.Exist())
+            importButtons.Add(Form.Button(L("Import from Logi Options+ …", "Aus Logi Options+ importieren …"), commands.ImportOptionsPlus));
+        stack.Children.Add(Form.Group(L("Import & export", "Import & Export"),
+            Form.Hint(L("Export saves the configuration as a file, e.g. for another computer. Import accepts such a file or an Actions Ring " +
+                        "preset exported from Logi Options+ (.lp5); you choose which parts to take over.",
+                "Exportieren speichert die Konfiguration als Datei, z.B. für einen anderen Rechner. Importieren nimmt so eine Datei oder ein " +
+                "aus Logi Options+ exportiertes Actions-Ring-Preset (.lp5); welche Teile übernommen werden, wählst du selbst.")),
+            Form.Buttons([.. importButtons])));
 
         // Info
         var running = OptionsPlusDetector.RunningProcesses();

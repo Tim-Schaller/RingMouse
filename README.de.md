@@ -27,7 +27,7 @@ MX Vertical über Bluetooth; andere Modelle sollten funktionieren – Rückmeldu
 1. [Installation](#installation)
 2. [Options+ ablösen](#options-ablösen)
 3. [Bedienung des Rings](#bedienung-des-rings)
-4. [Konfiguration](#konfiguration) · [Aktionstypen](#aktionstypen) · [Icons](#icons) · [Profile](#profile)
+4. [Konfiguration](#konfiguration) · [Aktionstypen](#aktionstypen) · [Icons](#icons) · [Profile](#profile) · [Import & Export](#import--export)
 5. [Akku & Tray](#akku--tray)
 6. [Fenster mit Adminrechten (UIPI / uiAccess)](#fenster-mit-adminrechten-uipi--uiaccess)
 7. [ringmouse-probe](#ringmouse-probe)
@@ -58,6 +58,9 @@ Aktualisieren: RingMouse beenden (Tray → *Beenden* oder `RingMouse.exe --exit`
 Options+ und RingMouse streiten sich um dieselben Tasten. Options+ setzt seine Umleitungen bei jedem App-Wechsel neu und
 schaltet die „Analytics“-Meldungen für jeden Klick wieder ein.
 
+1. Zuerst die Options+-Einrichtung übernehmen: Die Ersteinrichtung bietet **Aus Logi Options+ übernehmen …** an (auch
+   unter Einstellungen → Allgemein). Das bringt den Actions Ring samt Ordnern, die Tastenbelegungen und die App-Profile
+   mit – siehe [Import & Export](#import--export).
 1. Options+ beenden: Tray → Beenden, dann im Task-Manager `logioptionsplus_agent`, `logioptionsplus` und
    `LogiPluginService` beenden.
 2. RingMouse starten. Im Log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) sollte eine Zeile wie
@@ -217,6 +220,26 @@ Playlist öffnet `launch` mit ihrer `spotify:playlist:…`-URI; Abspielen musst 
 - Alles andere kommt aus dem Standard.
 - Tasten, die nur in einem Profil belegt sind, werden trotzdem überall umgeleitet. In den anderen Apps bildet RingMouse
   die Originalfunktion nach (Zurück/Vor/Mitte).
+
+### Import & Export
+
+- **Exportieren:** Einstellungen → Allgemein → *Exportieren …* speichert die Konfiguration als `.json`-Datei, z.B. für
+  einen anderen Rechner.
+- **Importieren:** *Importieren …* nimmt so eine Datei oder ein aus Logi Options+ exportiertes Actions-Ring-Preset
+  (`.lp5`). Eine Vorschau zeigt, was übernommen wird und was nicht; du wählst die Teile: Ringe, Tastenbelegungen,
+  App-Profile, Geräte-Einstellungen und – bei RingMouse-Dateien – die allgemeinen Einstellungen. Gewählte Teile ersetzen
+  gleichnamige Ringe, Profile und Geräte-Einträge sowie dieselben Tasten; alles andere bleibt. Vorher wird eine Sicherung
+  der aktuellen Konfiguration angelegt.
+- **Aus Logi Options+:** *Aus Logi Options+ importieren …* (auch in der Ersteinrichtung) liest die lokalen Options+-Daten:
+  den Actions Ring samt Ordnern (aus dem Logi Plugin Service, auch App-spezifische Ringe) sowie Tastenbelegungen und
+  App-Profile der gewählten Maus (aus der Options+-Einstellungsdatenbank, gelesen aus einer Kopie).
+  - Übernommen werden: Tastenkürzel, Textbausteine, Programm-/Datei-/URL-Starts, Medien- und Windows-Funktionen, Makros
+    daraus sowie die Aktionen des Spotify-Plugins (als lokale Spotify-Hotkeys, Playlists über ihre `spotify:`-URI).
+  - Nicht übertragbar: Aktionen anderer Plugins (z.B. Excel, Teams, Photoshop), Drehregler-Funktionen, Gesten,
+    Easy-Switch, macOS-Tastenkürzel und „Zeigergeschwindigkeit ändern“. Der Bericht nennt jede einzeln.
+  - Gelesen werden nur Profile und Anwendungen – keine Konto-, Analyse- oder sonstigen Options+-Daten.
+- `RingMouse.exe --import-report <Datei>` schreibt, was ein Import aus der installierten Options+ ergäbe, ohne etwas zu
+  ändern – praktisch für Fehlerberichte.
 
 ## Akku & Tray
 

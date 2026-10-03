@@ -16,6 +16,7 @@ public static class Program
     public static int Main(string[] args)
     {
         if (args.Contains("--exit", StringComparer.OrdinalIgnoreCase)) return ExitRunningInstance();
+        if (args.Contains("--import-report", StringComparer.OrdinalIgnoreCase)) return WriteImportReport(args);
         // Diagnose ohne Gerät – darf neben einer laufenden Instanz laufen
         if (args.Contains("--render-ui", StringComparer.OrdinalIgnoreCase)) return new RingMouseApplication(args).Run();
 
@@ -41,6 +42,32 @@ public static class Program
         else if (app.RestartRequested) StartNewInstance(mutex, "--settings");
         GC.KeepAlive(mutex);
         return code;
+    }
+
+    /// <summary>
+    /// "--import-report &lt;datei&gt;": was ein Import aus der installierten Logi Options+ ergäbe (je Maus Bericht und
+    /// Teil-Config) als Textdatei – ändert nichts, zur Kontrolle und für Fehlerberichte.
+    /// </summary>
+    private static int WriteImportReport(string[] args)
+    {
+        var index = Array.FindIndex(args, a => a.Equals("--import-report", StringComparison.OrdinalIgnoreCase));
+        var path = index + 1 < args.Length ? args[index + 1] : "ringmouse-import-report.txt";
+        using var importer = Platform.Import.OptionsPlusFiles.Load();
+        var text = new System.Text.StringBuilder();
+        text.AppendLine($"RingMouse import report · {DateTime.Now:yyyy-MM-dd HH:mm}");
+        text.AppendLine($"Options+ settings: {Platform.Import.OptionsPlusFiles.SettingsDatabase}");
+        text.AppendLine($"Actions Ring profiles: {Platform.Import.OptionsPlusFiles.RingProfilesRoot}");
+        text.AppendLine($"Mice: {string.Join(", ", importer.Mice.Select(m => $"{m.DisplayName} ({m.SlotPrefix})"))}");
+        foreach (var prefix in importer.Mice.Count == 0 ? [null] : importer.Mice.Select(m => (string?)m.SlotPrefix))
+        {
+            var result = importer.Build(prefix);
+            text.AppendLine().AppendLine($"=== {prefix ?? "(no mouse)"} · parts: {result.Available}");
+            foreach (var note in result.Notes)
+                text.AppendLine((note.Kind == Core.Import.ImportNoteKind.Imported ? "  + " : "  - ") + note.Text);
+            text.AppendLine(Core.Config.ConfigSerializer.Serialize(result.Config));
+        }
+        System.IO.File.WriteAllText(path, text.ToString(), new System.Text.UTF8Encoding(false));
+        return 0;
     }
 
     /// <summary>Gewünschter Neustart (z.B. Sprachwechsel): Sperre freigeben und eine neue Instanz starten.</summary>

@@ -8,6 +8,7 @@ using RingMouse.App.Tray;
 using RingMouse.Core.Config;
 using RingMouse.Core.Localization;
 using RingMouse.Device;
+using static RingMouse.Core.Localization.Lang;
 using RingMouse.HidPlusPlus;
 using RingMouse.HidPlusPlus.Features;
 using RingMouse.Platform.Autostart;
@@ -118,6 +119,25 @@ internal static class UiSnapshots
         }
         File.WriteAllText(Path.Combine(directory, "settings-dirty.txt"), window.IsDirty ? $"DIRTY after page {dirtyAfter}" : "clean");
         window.Close();
+
+        // Import-Vorschau mit einem Beispiel-Ergebnis (wie aus Logi Options+)
+        var sample = new RingMouse.Core.Import.ImportResult(L("Logi Options+ (installed)", "Logi Options+ (installiert)")) { Config = config };
+        sample.Imported(L("Actions Ring: ring \"main\" with 7 action(s)", "Actions Ring: Ring \"main\" mit 7 Aktion(en)"));
+        sample.Imported(L("Actions Ring: ring \"spotify\" with 4 action(s)", "Actions Ring: Ring \"spotify\" mit 4 Aktion(en)"));
+        sample.Skipped(L("Ring for Excel: slot 2 \"Create Chart\" – action of the \"Excel\" plugin is not supported",
+            "Ring für Excel: Platz 2 „Create Chart“ – Aktion des Plugins „Excel“ wird nicht unterstützt"));
+        sample.Imported("MX Vertical: 0x00FD DPI Switch → " + new OpenRingAction { Ring = "main" }.Describe());
+        var import = new ImportWindow(sample, [new("mx-vertical-eb020", "MX Vertical"), new("m720-triathlon-6b015", "M720 Triathlon")],
+            "mx-vertical-eb020", _ => sample)
+        {
+            Left = -30000, Top = -30000, ShowActivated = false, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual,
+        };
+        import.Show();
+        DoEvents();
+        Wait(300);
+        import.UpdateLayout();
+        SaveVisual(import, (int)import.ActualWidth, (int)import.ActualHeight, Path.Combine(directory, "import.png"), background);
+        import.Close();
 
         // Ersteinrichtung: erkannte Taste ("Fertig!") und ohne Tastendruck ("Nochmal")
         foreach (var (name, result) in new[] { ("fertig", (ButtonEvent?)new ButtonEvent("demo", 0x00FD, true, 0)), ("ohne-taste", null) })
@@ -250,5 +270,6 @@ internal static class UiSnapshots
         public Task<ButtonEvent?> CaptureButtonAsync(Action? armed, CancellationToken ct) => Task.FromResult(CaptureResult);
         public void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu) { }
         public void Restart() { }
+        public string? ApplyImport(RingMouseConfig source, RingMouse.Core.Import.ImportParts parts) => null;
     }
 }

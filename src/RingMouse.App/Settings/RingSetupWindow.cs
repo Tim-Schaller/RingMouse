@@ -1,8 +1,12 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using RingMouse.Core.Config;
+using RingMouse.Core.Import;
 using RingMouse.Device;
 using RingMouse.HidPlusPlus.Features;
+using RingMouse.Platform.Import;
 using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
@@ -20,6 +24,7 @@ internal sealed class RingSetupWindow : Window
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MaxWidth = 440, FontWeight = FontWeights.SemiBold };
     private readonly Button _retry;
     private readonly Button _close;
+    private readonly Button? _optionsPlus;
     private CancellationTokenSource? _cts;
     private ushort? _assigned;
 
@@ -49,7 +54,10 @@ internal sealed class RingSetupWindow : Window
         _retry.Visibility = Visibility.Collapsed;
         _close = Form.Button(L("Later", "Später"), Close);
 
-        var buttons = Form.Buttons(_retry, _close);
+        // Umsteiger von Options+: Ring, Tasten und App-Profile mit einem Klick übernehmen
+        if (OptionsPlusFiles.Exist())
+            _optionsPlus = Form.Button(L("Import from Logi Options+ …", "Aus Logi Options+ übernehmen …"), ImportFromOptionsPlus);
+        var buttons = _optionsPlus is null ? Form.Buttons(_retry, _close) : Form.Buttons(_optionsPlus, _retry, _close);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = new Thickness(0, 16, 0, 0);
 
@@ -110,6 +118,54 @@ internal sealed class RingSetupWindow : Window
         _retry.Content = L("Other button", "Andere Taste");
         _retry.Visibility = Visibility.Visible;
         _close.Content = L("Done", "Fertig");
+    }
+
+    private void ImportFromOptionsPlus()
+    {
+        _cts?.Cancel(); // Tasten-Erkennung währenddessen anhalten
+        using (var importer = OptionsPlusFiles.Load())
+        {
+            if (!importer.HasAnything)
+            {
+                _text.Text = L("No Logi Options+ settings were found. Press the button that should open the ring.",
+                    "Keine Einstellungen von Logi Options+ gefunden. Drück die Taste, die den Ring öffnen soll.");
+                _ = CaptureAsync();
+                return;
+            }
+
+            var window = ImportWindow.ForOptionsPlus(importer, _host.Devices);
+            window.Owner = this;
+            if (window.ShowDialog() == true)
+            {
+                try
+                {
+                    _host.ApplyImport(window.Result.Config, window.SelectedParts);
+                    var ringButton = window.SelectedParts.HasFlag(ImportParts.Buttons)
+                        ? window.Result.Config.Buttons.FirstOrDefault(b => b.Value is OpenRingAction).Key
+                        : null;
+                    if (ringButton is not null && ControlIds.TryParse(ringButton, out var cid))
+                    {
+                        _assigned = cid;
+                        _heading.Text = L("Done!", "Fertig!");
+                        _text.Text = L($"Imported from Logi Options+. “{ControlName(cid)}” opens the Actions Ring as before.",
+                            $"Aus Logi Options+ übernommen. „{ControlName(cid)}“ öffnet den Actions Ring wie bisher.");
+                        _status.Text = "";
+                        _retry.Content = L("Other button", "Andere Taste");
+                        _retry.Visibility = Visibility.Visible;
+                        _close.Content = L("Done", "Fertig");
+                        _optionsPlus!.Visibility = Visibility.Collapsed;
+                        return;
+                    }
+                    _text.Text = L("Imported. Now press the button that should open the ring.",
+                        "Übernommen. Jetzt noch die Taste drücken, die den Ring öffnen soll.");
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                {
+                    _text.Text = L($"Nothing was imported: {ex.Message}", $"Es wurde nichts übernommen: {ex.Message}");
+                }
+            }
+        }
+        _ = CaptureAsync();
     }
 
     private void ShowRetry(string message)

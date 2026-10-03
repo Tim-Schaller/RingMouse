@@ -1,10 +1,15 @@
 using System.ComponentModel;
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using RingMouse.Core.Config;
+using RingMouse.Core.Import;
+using RingMouse.Platform.Import;
 using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.App.Settings;
@@ -99,7 +104,11 @@ internal sealed class SettingsWindow : Window
         _tabs.Items.Add(new TabItem { Header = L("Buttons", "Tasten"), Content = _buttonsPage });
         _tabs.Items.Add(new TabItem { Header = L("Profiles", "Profile"), Content = new ProfilesPage(_ctx) });
         _tabs.Items.Add(new TabItem { Header = L("Device & battery", "Gerät & Akku"), Content = _devicePage });
-        _tabs.Items.Add(new TabItem { Header = L("General", "Allgemein"), Content = new GeneralPage(_ctx, ResetToDefaults, SaveAndRestart) });
+        _tabs.Items.Add(new TabItem
+        {
+            Header = L("General", "Allgemein"),
+            Content = new GeneralPage(_ctx, new GeneralPageCommands(ResetToDefaults, SaveAndRestart, Export, ImportFromFile, ImportFromOptionsPlus)),
+        });
         _tabs.SelectedIndex = selected < 0 ? 0 : selected;
         _dirty = false;
         _status.Text = "";
@@ -152,6 +161,106 @@ internal sealed class SettingsWindow : Window
         _dirty = false;
         _status.Text = message;
         _status.Foreground = (Brush)FindResource(SystemColors.ControlTextBrushKey);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ Export / Import
+
+    /// <summary>Die Konfiguration, wie sie im Fenster steht, als JSON-Datei speichern.</summary>
+    private void Export()
+    {
+        var dialog = new SaveFileDialog
+        {
+            FileName = $"RingMouse-{DateTime.Now:yyyy-MM-dd}.json",
+            Filter = L("RingMouse configuration (*.json)|*.json", "RingMouse-Konfiguration (*.json)|*.json"),
+            DefaultExt = ".json",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, ConfigSerializer.Serialize(_ctx.Config), new UTF8Encoding(false));
+            _status.Text = L($"Exported: {Path.GetFileName(dialog.FileName)}", $"Exportiert: {Path.GetFileName(dialog.FileName)}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, ex.Message, L("Export", "Exportieren"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>RingMouse-Config (.json) oder in Options+ exportiertes Actions-Ring-Preset (.lp5) importieren.</summary>
+    private void ImportFromFile()
+    {
+        if (!EnsureSaved()) return;
+        var dialog = new OpenFileDialog
+        {
+            Filter = L("RingMouse configuration or Options+ ring preset (*.json;*.lp5)|*.json;*.lp5|All files (*.*)|*.*",
+                "RingMouse-Konfiguration oder Options+-Ring-Preset (*.json;*.lp5)|*.json;*.lp5|Alle Dateien (*.*)|*.*"),
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        ImportResult result;
+        try
+        {
+            var name = Path.GetFileName(dialog.FileName);
+            if (Path.GetExtension(dialog.FileName).Equals(".lp5", StringComparison.OrdinalIgnoreCase))
+            {
+                result = new ImportResult(L($"Options+ ring preset {name}", $"Options+-Ring-Preset {name}"));
+                ActionsRingImporter.ImportRing(OptionsPlusFiles.ReadPreset(dialog.FileName), DefaultConfig.MainRing, result, L("Actions Ring", "Actions Ring"));
+            }
+            else
+            {
+                result = RingMouseFileImporter.Load(File.ReadAllText(dialog.FileName), name);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+        {
+            MessageBox.Show(this, L($"The file could not be read:\n{ex.Message}", $"Die Datei konnte nicht gelesen werden:\n{ex.Message}"),
+                L("Import", "Importieren"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        RunImport(new ImportWindow(result));
+    }
+
+    /// <summary>Ring, Tastenbelegungen und App-Profile aus einer installierten Logi Options+ übernehmen.</summary>
+    private void ImportFromOptionsPlus()
+    {
+        if (!EnsureSaved()) return;
+        using var importer = OptionsPlusFiles.Load();
+        if (!importer.HasAnything)
+        {
+            MessageBox.Show(this, L("No Logi Options+ settings were found on this computer.", "Auf diesem Rechner wurden keine Einstellungen von Logi Options+ gefunden."),
+                L("Import", "Importieren"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        RunImport(ImportWindow.ForOptionsPlus(importer, _host.Devices));
+    }
+
+    private void RunImport(ImportWindow window)
+    {
+        window.Owner = this;
+        if (window.ShowDialog() != true) return;
+        try
+        {
+            var backup = _host.ApplyImport(window.Result.Config, window.SelectedParts);
+            Load(ConfigSerializer.Clone(_host.CurrentConfig));
+            _status.Text = L("Imported", "Importiert") + (backup is null ? "" : L($" · backup: {Path.GetFileName(backup)}", $" · Sicherung: {Path.GetFileName(backup)}"));
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, L($"Nothing was imported:\n{ex.Message}", $"Es wurde nichts importiert:\n{ex.Message}"),
+                L("Import", "Importieren"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>Vor einem Import: ungespeicherte Änderungen speichern oder verwerfen (false = abbrechen).</summary>
+    private bool EnsureSaved()
+    {
+        if (!_dirty) return true;
+        var answer = MessageBox.Show(this, L("Save the current changes before importing?", "Aktuelle Änderungen vor dem Import speichern?"),
+            L("Import", "Importieren"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (answer == MessageBoxResult.Cancel) return false;
+        if (answer == MessageBoxResult.Yes) return Save();
+        Load(ConfigSerializer.Clone(_host.CurrentConfig)); // verwerfen
         return true;
     }
 

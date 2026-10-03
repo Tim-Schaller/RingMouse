@@ -29,6 +29,8 @@ $env:RINGMOUSE_HOME = "$env:TEMP\RingMouse-Test"; & ".\RingMouse.exe"; Remove-It
 | 14 | Settings → General → Language: switch between English and German, restart | Settings, tray menu, notifications and the setup window appear in the chosen language |
 | 15 | Settings → General → Restore defaults | A backup `config.backup-*.json` is created next to `config.json` |
 | 16 | Tray → Exit | The ring button has its native function again (e.g. DPI switching) |
+| 17 | Settings → General → *Export …*, then *Import …* the file with only "Rings" ticked | Preview lists the parts; afterwards only the rings changed, a `config.backup-*.json` exists |
+| 18 | With Logi Options+ installed: *Import from Logi Options+ …* (or the button in the first-run setup) | The Options+ ring with its folders appears; unsupported actions are listed in the report; `--import-report <file>` shows the same |
 
 The log is in `%APPDATA%\RingMouse\logs\ringmouse-*.log`. For problems, enable the **raw HID++ log** in the tray menu and
 look at `hidpp-*.log`.
