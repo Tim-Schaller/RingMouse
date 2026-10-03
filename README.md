@@ -23,6 +23,7 @@ DPI-Taste), **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer T
 8. [Testplan](#testplan)
 9. [Troubleshooting](#troubleshooting)
 10. [Bauen & Aufbau](#bauen--aufbau)
+11. [Lizenz](#lizenz)
 
 ---
 
@@ -286,3 +287,12 @@ tests/…                     Unit-Tests: Protokoll (inkl. abgespielter echter M
 - `RingMouse.exe --render-ui <ordner>` rendert Ring, Tray-Icons und Einstellungsseiten als PNG, ganz ohne Maus.
 - `RingMouse.exe --selftest --quiet` prüft den echten Pfad: Gerät konfiguriert, Ring sichtbar, Fokus bleibt, sauberes Beenden. Ergebnis steht im Log. Aktionen laufen dabei nur als Trockenlauf (es wird nichts ausgeführt); die Maus währenddessen nicht bewegen.
 - Abhängigkeiten: Serilog (Apache-2.0), H.NotifyIcon (MIT), xUnit (Apache-2.0). Solaar diente nur als Protokollreferenz; es wurde kein GPL-Code übernommen.
+
+## Lizenz
+
+[MIT mit „Commons Clause“](LICENSE): RingMouse darf kostenlos genutzt werden, auch beruflich, und darf verändert und
+kostenlos weitergegeben werden. Nicht erlaubt ist, RingMouse zu verkaufen oder kostenpflichtige Produkte oder Dienste
+anzubieten, deren Wert im Wesentlichen aus RingMouse stammt. Zum Mitwirken siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Logitech, Logi Options+ und MX Vertical sind Marken von Logitech. RingMouse ist ein unabhängiges Projekt und steht in
+keiner Verbindung zu Logitech.
