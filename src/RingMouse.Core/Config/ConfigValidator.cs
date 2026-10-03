@@ -86,7 +86,7 @@ public static class ConfigValidator
         if (c.Battery.VoltageCurve is { Count: < 2 }) Error("battery.voltageCurve", "braucht mindestens zwei Stützstellen");
 
         if (!c.Buttons.Values.Any(a => a is OpenRingAction) && !c.Profiles.Any(p => p.Buttons.Values.Any(a => a is OpenRingAction)))
-            Warn("buttons", "keine Taste öffnet einen Ring");
+            Warn("buttons", "keine Taste öffnet einen Ring (Einstellungen → Tasten → „Taste drücken …“)");
 
         return issues;
     }

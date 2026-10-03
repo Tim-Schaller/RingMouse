@@ -19,7 +19,7 @@ internal sealed class SettingsContext(ISettingsHost host, RingMouseConfig config
         Config.Rings.Keys.OrderBy(n => n.Equals(DefaultConfig.MainRing, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .ThenBy(n => n, StringComparer.OrdinalIgnoreCase);
 
-    public sealed record KnownControl(ushort Cid, string Name, bool Divertable, bool RawXY, string Devices);
+    public sealed record KnownControl(ushort Cid, string Name, bool Divertable, bool RawXY, string Devices, bool Virtual = false);
 
     /// <summary>Alle bekannten Tasten: von verbundenen Geräten (per 0x1B04 ermittelt) plus bereits konfigurierte.</summary>
     public IReadOnlyList<KnownControl> KnownControls()
@@ -32,7 +32,7 @@ internal sealed class SettingsContext(ISettingsHost host, RingMouseConfig config
                 var name = Tray.TrayController.ShortName(device.Name);
                 map[c.ControlId] = map.TryGetValue(c.ControlId, out var existing)
                     ? existing with { Devices = existing.Devices.Contains(name) ? existing.Devices : $"{existing.Devices}, {name}" }
-                    : new KnownControl(c.ControlId, c.Name, c.IsDivertable, c.SupportsRawXY, name);
+                    : new KnownControl(c.ControlId, c.Name, c.IsDivertable, c.SupportsRawXY, name, c.IsVirtual);
             }
         }
         foreach (var key in Config.Buttons.Keys.Concat(Config.Profiles.SelectMany(p => p.Buttons.Keys)))

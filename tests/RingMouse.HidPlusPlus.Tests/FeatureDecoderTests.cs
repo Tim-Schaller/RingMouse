@@ -71,12 +71,38 @@ public class FeatureDecoderTests
         Assert.Equal(400, list[0]);
         Assert.Equal(500, list[1]);
         Assert.Equal(4000, list[^1]);
-        Assert.Equal(1600, AdjustableDpiFeature.Snap(1620, list));
+        Assert.Equal(1600, DpiFeature.Snap(1620, list));
     }
 
     [Fact]
     public void Dpi_DiscreteList() =>
         Assert.Equal(new[] { 400, 800, 1600 }, AdjustableDpiFeature.ParseDpiList(HidppMessage.ParseHex("00 01 90 03 20 06 40 00 00")));
+
+    [Fact]
+    public void ExtendedDpi_ListContinuesAcrossPages_EvenInsideAValue()
+    {
+        // je Seite [Sensor, Richtung, Seite, 13 Byte Werte] – 3200 (0C 80) ist auf zwei Seiten verteilt
+        byte[] page0 = HidppMessage.ParseHex("00 00 00 01 90 03 20 04 B0 06 40 07 D0 09 60 0C");
+        byte[] page1 = HidppMessage.ParseHex("00 00 01 80 00 00 00 00 00 00 00 00 00 00 00 00");
+        Assert.Equal(new[] { 400, 800, 1200, 1600, 2000, 2400, 3200 }, ExtendedAdjustableDpiFeature.ParseDpiRangePages([page0, page1]));
+    }
+
+    [Fact]
+    public void ExtendedDpi_RangeWithStep()
+    {
+        var list = ExtendedAdjustableDpiFeature.ParseDpiRangePages([HidppMessage.ParseHex("00 00 00 00 64 E0 32 64 00 00 00 00 00 00 00 00")]);
+        Assert.Equal(511, list.Count); // 100 … 25600 in 50er-Schritten
+        Assert.Equal(100, list[0]);
+        Assert.Equal(150, list[1]);
+        Assert.Equal(25600, list[^1]);
+    }
+
+    [Fact]
+    public void ExtendedDpi_State()
+    {
+        var s = ExtendedAdjustableDpiFeature.ParseState(HidppMessage.ParseHex("00 06 40 03 E8 06 40 03 E8 02 00 00 00 00 00 00"));
+        Assert.Equal(new ExtendedDpiState(0, 1600, 1000, 1600, 1000, 2), s);
+    }
 
     [Fact]
     public void Reprog_DivertedButtonsAndRawXY()

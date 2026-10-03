@@ -107,6 +107,21 @@ internal static class UiSnapshots
         }
         File.WriteAllText(Path.Combine(directory, "settings-dirty.txt"), window.IsDirty ? $"DIRTY nach Seite {dirtyAfter}" : "sauber");
         window.Close();
+
+        // Ersteinrichtung: erkannte Taste ("Fertig!") und ohne Tastendruck ("Nochmal")
+        foreach (var (name, result) in new[] { ("fertig", (ButtonEvent?)new ButtonEvent("demo", 0x00FD, true, 0)), ("ohne-taste", null) })
+        {
+            var setup = new RingSetupWindow(new SnapshotHost(config) { CaptureResult = result }, (_, _) => { })
+            {
+                Left = -30000, Top = -30000, ShowActivated = false, ShowInTaskbar = false,
+            };
+            setup.Show();
+            DoEvents();
+            Wait(300);
+            setup.UpdateLayout();
+            SaveVisual(setup, (int)setup.ActualWidth, (int)setup.ActualHeight, Path.Combine(directory, $"ring-setup-{name}.png"), background);
+            setup.Close();
+        }
     }
 
     private static void SaveElement(FrameworkElement element, double width, double height, double scale, string path, Color? background)
@@ -220,6 +235,8 @@ internal static class UiSnapshots
         public void OpenConfigFolder() { }
         public void ReconnectAll() { }
         public Task<int?> SetDpiNowAsync(string deviceKey, int dpi) => Task.FromResult<int?>(dpi);
+        public ButtonEvent? CaptureResult { get; init; }
+        public Task<ButtonEvent?> CaptureButtonAsync(Action? armed, CancellationToken ct) => Task.FromResult(CaptureResult);
         public void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu) { }
     }
 }

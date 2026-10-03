@@ -9,6 +9,10 @@ DPI-Taste), **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer T
 - Wird Abmelden oder Herunterfahren abgebrochen, startet RingMouse nach etwa 20 s von selbst wieder.
 - Die Konfiguration steht in einer JSON-Datei und wird bei Änderungen sofort neu geladen.
 
+**Unterstützte Mäuse:** Logitech-Mäuse mit HID++ 2.0, direkt per Bluetooth, über einen Bolt- oder Unifying-Empfänger oder
+per Kabel. Akku über `0x1004`, `0x1001` oder `0x1000`, DPI über `0x2201` oder `0x2202`. Getestet ist bisher die MX Vertical
+über Bluetooth; andere Modelle sollten funktionieren – Rückmeldungen sind willkommen (siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
+
 ---
 
 ## Inhalt
@@ -39,7 +43,7 @@ DPI-Taste), **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer T
 ```
 
 1. `RingMouse.exe` an einen festen Ort kopieren, z.B. `%LOCALAPPDATA%\Programs\RingMouse\`, und starten.
-2. Beim ersten Start wird `%APPDATA%\RingMouse\config.json` mit einem Standard-Ring angelegt: 8 Plätze, Untermenüs *Medien* und *Text*. Ring-Taste ist die DPI-Taste (`0x00FD`); hat deine Maus keine, wählst du unter Einstellungen → *Tasten* eine andere.
+2. Beim ersten Start wird `%APPDATA%\RingMouse\config.json` mit einem Standard-Ring angelegt: 8 Plätze, Untermenüs *Medien* und *Text*. Sobald die Maus verbunden ist, fragt die **Ersteinrichtung** nach der Ring-Taste: einfach die gewünschte Taste an der Maus drücken (z. B. Daumen-, Gesten- oder DPI-Taste). Ändern geht jederzeit unter Einstellungen → *Tasten* → **Taste drücken …**.
 3. Tray-Symbol → **Einstellungen** → *Allgemein* → **Mit Windows starten** → Speichern.
 
 ## Options+ ablösen
@@ -48,7 +52,7 @@ Options+ und RingMouse streiten sich um dieselben Tasten. Options+ setzt seine U
 
 1. Options+ beenden: Tray → Beenden, dann im Task-Manager `logioptionsplus_agent`, `logioptionsplus` und `LogiPluginService` beenden.
 2. RingMouse starten. Im Log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) sollte stehen:
-   `<Mausname> … konfiguriert … umgeleitet [0x00FD] Raw-XY [0x00FD]`.
+   `<Mausname> … konfiguriert … umgeleitet [0x…] Raw-XY [0x…]` mit der CID deiner Ring-Taste.
 3. Klappt alles: **Logi Options+** deinstallieren. Den **Logi Plugin Service** gleich mit entfernen, er ist der Unterbau des Actions Rings.
 4. Hat Options+ Tasten *dauerhaft* umgeleitet, zeigt `ringmouse-probe controls` bei diesen Tasten `PERSIST`. Zurücksetzen geht mit `ringmouse-probe reset`. RingMouse räumt fremde Umleitungen auf nicht belegten Tasten beim Start ohnehin selbst auf.
 
@@ -67,7 +71,7 @@ Options+ und RingMouse streiten sich um dieselben Tasten. Options+ setzt seine U
 - **Rückmeldung:** Das markierte Segment blendet weich in die Akzentfarbe und gleitet leicht nach außen, beim Durchschieben wandert es weiter hinaus. Steht der Zeiger beim Halten still (Raw-XY), zeigt ein Punkt die Bewegung, und der normale Mauszeiger ist so lange ausgeblendet (`ring.hideCursor`; er kommt beim Schließen, im Tippen-Modus und nach 5 s ohne Bewegung zurück, nach einem Absturz beim nächsten Start). Untermenüs zoomen herein und beim Zurückgehen wieder heraus, beim Ausführen leuchtet das Segment kurz auf und der Ring blendet aus. An Segmentgrenzen gibt es 5° Hysterese, damit die Markierung nicht flackert. `ring.animation: false` schaltet die Animationen ab.
 - **Mitte (Deadzone):** Loslassen oder Klicken dort bricht ab. Im Untermenü heißt die Mitte „Zurück“.
 - Weitere Wege zum Abbrechen: **Esc**, **Rechtsklick**, Klick außerhalb des Rings, **Taste erneut drücken** (im Tippen-Modus). **Rücktaste** führt eine Ebene zurück.
-- Kann die Taste **Raw-XY** (die MX-Vertical-DPI-Taste kann es), bleibt der Mauszeiger beim Halten stehen und die Richtung kommt direkt vom Sensor.
+- Kann die Taste **Raw-XY** (z. B. die DPI-Taste der MX Vertical; `ringmouse-probe controls` zeigt es je Taste), bleibt der Mauszeiger beim Halten stehen und die Richtung kommt direkt vom Sensor. Sonst wählt der Ring über die Zeigerbewegung.
 - Am Bildschirmrand wird der Ring in den sichtbaren Bereich geschoben. Danach springt der Zeiger an seine Ausgangsposition zurück (`ring.restoreCursor`).
 - Das Overlay aktiviert sich nie, der Fokus bleibt im Zielfenster. Die Aktion landet also dort, wo du gerade warst.
 - Hell/Dunkel folgt dem Windows-Modus, die Akzentfarbe ebenfalls. Der Ring ist Per-Monitor-DPI-korrekt.
@@ -103,8 +107,8 @@ Options+ und RingMouse streiten sich um dieselben Tasten. Options+ setzt seine U
     "ringColor": null, "accentColor": null, "opacity": 100, "textScale": 100,   // null = automatisch, sonst "#RRGGBB"
     "pointerColor": null, "pointerSize": 9
   },
-  "buttons": {                          // CID → Aktion (CIDs: ringmouse-probe controls)
-    "0x00FD": { "type": "ring", "ring": "main" }
+  "buttons": {                          // CID → Aktion (CIDs: Einstellungen → Tasten oder ringmouse-probe controls)
+    "0x00FD": { "type": "ring", "ring": "main" }   // legt die Ersteinrichtung für die gedrückte Taste an
   },
   "rings": {
     "main": { "segments": [
@@ -235,17 +239,18 @@ Diese Punkte bitte einmal durchgehen. Options+ vorher beenden (siehe oben).
 | # | Test | Erwartung |
 |---|---|---|
 | 1 | `ringmouse-probe list`, `dump` | Maus wird gefunden, Features, Tasten und Akku werden angezeigt |
-| 2 | `ringmouse-probe live --cid 0x00FD --rawxy` und die DPI-Taste drücken/halten/bewegen | `GEDRÜCKT`/`losgelassen` erscheinen, beim Halten Raw-XY-Summen; nach Strg+C steht die Taste wieder auf „wiederhergestellt“ |
-| 3 | `ringmouse-probe watch --cid 0x00FD --rawxy --takeover`, dann Maus aus/an, Bluetooth aus/an, Standby, Sperren/Entsperren | Es folgen `nicht erreichbar` → `Wireless-Status reconnect` → `konfiguriert (Reconnect …)`; die Taste funktioniert danach sofort wieder |
-| 4 | RingMouse starten, DPI-Taste **kurz tippen** | Ring bleibt offen, Klick auf „Emoji“ öffnet das Emoji-Panel im vorherigen Fenster |
-| 5 | DPI-Taste **halten**, Richtung wählen, loslassen | Die Aktion wird ausgeführt, der Zeiger stand still (Raw-XY) |
+| 2 | `ringmouse-probe live --cid <CID> --rawxy` und die Taste drücken/halten/bewegen | `GEDRÜCKT`/`losgelassen` erscheinen, beim Halten Raw-XY-Summen; nach Strg+C steht die Taste wieder auf „wiederhergestellt“ |
+| 3 | `ringmouse-probe watch --cid <CID> --rawxy --takeover`, dann Maus aus/an, Bluetooth aus/an, Standby, Sperren/Entsperren | Es folgen `nicht erreichbar` → `Wireless-Status reconnect` → `konfiguriert (Reconnect …)`; die Taste funktioniert danach sofort wieder |
+| 4 | RingMouse zum ersten Mal starten | Die Ersteinrichtung fragt nach der Ring-Taste; nach dem Drücken steht „Fertig!“ |
+| 5 | Ring-Taste **kurz tippen** | Ring bleibt offen, Klick auf „Emoji“ öffnet das Emoji-Panel im vorherigen Fenster |
+| 5b | Ring-Taste **halten**, Richtung wählen, loslassen | Die Aktion wird ausgeführt; mit Raw-XY steht der Zeiger dabei still |
 | 6 | Untermenü *Text* → *Datum* in Notepad/Browser | Das heutige Datum wird eingefügt |
 | 7 | Untermenü *Medien* → *Lauter*/*Nächster Titel* bei laufender Musik | Lautstärke bzw. Titel ändern sich, der Fokus bleibt im Fenster |
 | 8 | Ring am Bildschirmrand und auf dem zweiten Monitor öffnen | Ring bleibt komplett sichtbar und ist scharf |
 | 9 | PowerShell **als Admin** im Vordergrund, dann Ring mit einem Textbaustein | Ohne uiAccess: Tray-Hinweis und Logeintrag (UIPI). Mit uiAccess: der Text kommt an |
 | 10 | Akku: Maus laden | Blitz im Tray, am Ende „Aufladen abgeschlossen“ |
 | 11 | `config.json` ändern (z.B. `"radius": 180`) und speichern | Wird sofort übernommen; Tippfehler ergeben eine Tray-Meldung mit Zeile, die alte Config bleibt aktiv |
-| 12 | Tray → Beenden | Die DPI-Taste schaltet wieder nativ die DPI um |
+| 12 | Tray → Beenden | Die Ring-Taste hat wieder ihre Originalfunktion (z. B. DPI umschalten) |
 
 Das Log liegt unter `%APPDATA%\RingMouse\logs\ringmouse-*.log`. Bei Problemen im Tray **Raw-HID++-Log** einschalten und `hidpp-*.log` ansehen.
 
@@ -253,8 +258,8 @@ Das Log liegt unter `%APPDATA%\RingMouse\logs\ringmouse-*.log`. Bei Problemen im
 
 | Problem | Ursache / Lösung |
 |---|---|
-| Ring öffnet nicht | Läuft Options+? Siehe Tray-Tooltip bzw. Log. Im Log nach `umgeleitet [0x00FD]` suchen. Gegenprobe mit `ringmouse-probe live --cid 0x00FD` |
-| DPI-Taste ohne Funktion nach einem Absturz | Die temporäre Umleitung ist noch aktiv. Maus kurz aus- und einschalten oder `ringmouse-probe reset`. Ein Neustart von RingMouse setzt sie ebenfalls neu |
+| Ring öffnet nicht | Ist eine Ring-Taste belegt (Einstellungen → Tasten)? Läuft Options+? Siehe Tray-Tooltip bzw. Log: dort nach `umgeleitet [0x…]` mit der CID der Taste suchen. Gegenprobe mit `ringmouse-probe live --cid <CID>` |
+| Taste ohne Funktion nach einem Absturz | Die temporäre Umleitung ist noch aktiv. Maus kurz aus- und einschalten oder `ringmouse-probe reset`. Ein Neustart von RingMouse setzt sie ebenfalls neu |
 | Nach dem Aufwachen braucht der erste Druck einen Moment | BLE verbindet sich neu. RingMouse konfiguriert die Maus nach `0x1D4B`, nach Standby-Ende (+2/+6/+15 s) und per Watchdog |
 | Akku zeigt „?“ oder grau | Die Maus schläft und hat noch keinen Wert geliefert. Den letzten Stand zeigt der Tooltip |
 | Aktion kommt im Admin-Fenster nicht an | UIPI, siehe [uiAccess](#fenster-mit-adminrechten-uipi--uiaccess) |
@@ -268,7 +273,7 @@ Das Log liegt unter `%APPDATA%\RingMouse\logs\ringmouse-*.log`. Bei Problemen im
 ## Bauen & Aufbau
 
 ```
-src/RingMouse.HidPlusPlus   HID++-Protokoll (Framing, Matching, Features 0x0000/0001/0003/0005/1000/1001/1004/1B04/1D4B/2201,
+src/RingMouse.HidPlusPlus   HID++-Protokoll (Framing, Matching, Features 0x0000/0001/0003/0005/1000/1001/1004/1B04/1D4B/2201/2202,
                             Receiver-Register) + schlanker Win32-HID-Transport (hid.dll/cfgmgr32, Overlapped-I/O). Keine Pakete.
 src/RingMouse.Core          Config (Modell, JSON, Schema, Validierung, Hot-Reload), Ring-Geometrie + Zustandsautomat,
                             Profile, Akku-Schwellen, Tastenkürzel-Parser, Textbausteine

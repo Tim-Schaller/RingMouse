@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using RingMouse.HidPlusPlus;
 using RingMouse.HidPlusPlus.Discovery;
+using RingMouse.HidPlusPlus.Features;
 using RingMouse.HidPlusPlus.Receivers;
 using RingMouse.HidPlusPlus.Transport;
 
@@ -67,6 +68,11 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
     private volatile DeviceConfiguration _configuration = DeviceConfiguration.Empty;
     private int _stopped;
 
+    // Tasten-Erkennung: laufende Erkennung und Tasten, deren Loslassen noch geschluckt werden muss
+    private readonly object _captureLock = new();
+    private TaskCompletionSource<ButtonEvent>? _capture;
+    private readonly HashSet<(string DeviceKey, ushort ControlId)> _captureSwallow = [];
+
     public DeviceService(IHidTransport transport, IHidDeviceWatcher? watcher, ILogger? logger = null, DeviceServiceOptions? options = null)
     {
         _transport = transport;
@@ -76,7 +82,12 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
     }
 
     public DeviceServiceOptions Options { get; }
-    public DeviceConfiguration Configuration => _configuration;
+
+    /// <summary>Wirksame Konfiguration – während einer Tasten-Erkennung mit allen umleitbaren Maustasten.</summary>
+    public DeviceConfiguration Configuration =>
+        Volatile.Read(ref _capture) is null ? _configuration : _configuration with { CaptureAllButtons = true };
+
+    public bool IsCapturingButton => Volatile.Read(ref _capture) is not null;
     ILogger IDeviceHost.Logger => _logger;
     CancellationToken IDeviceHost.Stopping => _cts.Token;
 
@@ -245,6 +256,85 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             var next = values.Count == 1 ? values[0] : values[(index + 1) % values.Count];
             return await SetDpiCoreAsync(device.Key, next, ct).ConfigureAwait(false);
         }, ct);
+
+    /// <summary>
+    /// Tasten-Erkennung: leitet an allen Mäusen vorübergehend jede umleitbare Taste um und liefert die erste gedrückte
+    /// (Gerät + CID). Dabei wird keine Aktion ausgelöst, auch das Loslassen geht nicht weiter. Danach gilt wieder die
+    /// normale Konfiguration. <paramref name="armed"/> meldet (im Threadpool), wenn die Umleitungen stehen.
+    /// Liefert null bei Zeitüberschreitung oder Abbruch.
+    /// </summary>
+    public async Task<ButtonEvent?> CaptureButtonAsync(TimeSpan timeout, Action? armed = null, CancellationToken ct = default)
+    {
+        var capture = new TaskCompletionSource<ButtonEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_captureLock)
+        {
+            if (_capture is not null) throw new InvalidOperationException("Die Tasten-Erkennung läuft bereits.");
+            _capture = capture;
+        }
+
+        _logger.LogInformation("Tasten-Erkennung gestartet – alle umleitbaren Maustasten vorübergehend umgeleitet");
+        try
+        {
+            await ConfigureNowAsync("Tasten-Erkennung", ct).ConfigureAwait(false);
+            armed?.Invoke();
+            var pressed = await capture.Task.WaitAsync(timeout, ct).ConfigureAwait(false);
+            _logger.LogInformation("Tasten-Erkennung: {Cid} ({Name}) auf {Device}", ControlIds.Format(pressed.ControlId),
+                ControlIds.GetName(pressed.ControlId), pressed.DeviceKey);
+            return pressed;
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogInformation("Tasten-Erkennung: keine Taste gedrückt (Zeit abgelaufen)");
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Tasten-Erkennung abgebrochen");
+            return null;
+        }
+        finally
+        {
+            lock (_captureLock) _capture = null;
+            foreach (var d in AllDevices()) d.RequestConfigure(TimeSpan.Zero, "Tasten-Erkennung beendet");
+        }
+    }
+
+    /// <summary>Alle bereiten Geräte sofort konfigurieren (höchstens 5 s warten – ein langsames Gerät folgt später).</summary>
+    private async Task ConfigureNowAsync(string reason, CancellationToken ct)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+        limit.CancelAfter(TimeSpan.FromSeconds(5));
+        var devices = AllDevices().Where(d => d.State == DeviceState.Ready).ToList();
+        try
+        {
+            await Task.WhenAll(devices.Select(d => d.ConfigureAsync(reason, limit.Token))).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            foreach (var d in devices) d.RequestConfigure(TimeSpan.Zero, reason);
+        }
+    }
+
+    /// <summary>
+    /// Während einer Tasten-Erkennung: Drücken (und das spätere Loslassen derselben Taste) nicht weitergeben.
+    /// Loslassen anderer Tasten geht durch, damit z.B. ein vorher gedrückter Ring nicht hängen bleibt.
+    /// </summary>
+    private bool InterceptForCapture(ButtonEvent e)
+    {
+        var key = (e.DeviceKey, e.ControlId);
+        lock (_captureLock)
+        {
+            if (!e.IsDown) return _captureSwallow.Remove(key);
+            if (_capture is not { } capture)
+            {
+                _captureSwallow.Remove(key); // Loslassen kam nie an (Umleitung schon aufgehoben) – Eintrag verwerfen
+                return false;
+            }
+            _captureSwallow.Add(key);
+            capture.TrySetResult(e);
+            return true;
+        }
+    }
 
     private IEnumerable<ManagedDevice> TargetDevices(string? deviceKey)
     {
@@ -607,6 +697,7 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
     void IDeviceHost.OnButton(ButtonEvent e)
     {
         if (e.IsDown) LastActiveDeviceKey = e.DeviceKey;
+        if (InterceptForCapture(e)) return;
         try
         {
             ButtonChanged?.Invoke(e);

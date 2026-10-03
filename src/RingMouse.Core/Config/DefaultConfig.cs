@@ -2,7 +2,8 @@ namespace RingMouse.Core.Config;
 
 /// <summary>
 /// Eingebaute Standard-Config für neue Installationen: ein allgemeiner Ring ohne persönliche Inhalte.
-/// Slot-Reihenfolge: 0 = oben, dann im Uhrzeigersinn.
+/// Keine Taste ist vorbelegt – welche den Ring öffnet, legt die Ersteinrichtung fest (Taste drücken), denn
+/// jede Maus hat andere Tasten. Slot-Reihenfolge: 0 = oben, dann im Uhrzeigersinn.
 /// </summary>
 public static class DefaultConfig
 {
@@ -11,8 +12,6 @@ public static class DefaultConfig
     public static RingMouseConfig Create()
     {
         var c = new RingMouseConfig();
-
-        c.Buttons["0x00FD"] = new OpenRingAction { Ring = MainRing };
 
         c.Rings[MainRing] = new RingDefinition
         {

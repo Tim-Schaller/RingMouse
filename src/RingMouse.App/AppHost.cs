@@ -41,6 +41,9 @@ internal interface ISettingsHost
     void ReconnectAll();
     Task<int?> SetDpiNowAsync(string deviceKey, int dpi);
 
+    /// <summary>Tasten-Erkennung: nächste gedrückte Maustaste (ohne Aktion) – null bei Zeitablauf/Abbruch.</summary>
+    Task<ButtonEvent?> CaptureButtonAsync(Action? armed, CancellationToken ct);
+
     /// <summary>Ring kurz in Originalgröße am Mauszeiger zeigen (mit den Einstellungen aus dem Fenster).</summary>
     void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu);
 }
@@ -69,6 +72,8 @@ internal sealed class AppHost : ISettingsHost
     private EventWaitHandle? _exitEvent;
     private RegisteredWaitHandle? _exitWait;
     private SettingsWindow? _settings;
+    private RingSetupWindow? _ringSetup;
+    private bool _hasRingButton;
     private bool _optionsPlusWarned;
     private int _shutdown;
 
@@ -210,7 +215,7 @@ internal sealed class AppHost : ISettingsHost
         {
             _state.State.FirstRunCompleted = true;
             _state.Save();
-            _tray.Notify("RingMouse läuft", "Die obere DPI-Taste öffnet den Ring. Einstellungen und Akku im Tray-Symbol.", TrayNotice.Info);
+            _tray.Notify("RingMouse läuft", "Einstellungen und Akkustand findest du im Tray-Symbol.", TrayNotice.Info);
         }
         if (HasArg("--settings")) ShowSettings();
         if (HasArg("--selftest")) _ = RunSelfTestAsync();
@@ -235,7 +240,15 @@ internal sealed class AppHost : ISettingsHost
             device?.Name ?? "–", device is not null, device is null ? "" : string.Join(", ", device.DivertedControls.Select(ControlIds.Format)),
             device?.Battery?.EffectivePercent);
 
-        var cid = device?.DivertedControls.FirstOrDefault(c => _configStore.Current.Buttons.ContainsKey(ControlIds.Format(c))) ?? 0x00FD;
+        var ringControls = new ProfileResolver(_configStore.Current).RingControls();
+        var cid = device?.DivertedControls.FirstOrDefault(ringControls.Contains) ?? 0;
+        if (cid == 0) cid = ringControls.FirstOrDefault();
+        if (cid == 0)
+        {
+            _log.LogWarning("SELFTEST: keine Taste öffnet einen Ring – Ende");
+            Exit();
+            return;
+        }
         var before = ForegroundWindow.Capture();
         var cursor = RingMouse.Platform.Display.Monitors.CursorPosition();
         _router.OnButton(new ButtonEvent("selftest", cid, true, Stopwatch.GetTimestamp()));
@@ -268,7 +281,9 @@ internal sealed class AppHost : ISettingsHost
         _battery.Update(config);
 
         var divert = resolver.ControlsToDivert();
-        var rawXY = config.Ring.UseRawXY == RawXYUsage.Off ? new HashSet<ushort>() : resolver.RingControls();
+        var ringControls = resolver.RingControls();
+        _hasRingButton = ringControls.Count > 0;
+        var rawXY = config.Ring.UseRawXY == RawXYUsage.Off ? new HashSet<ushort>() : ringControls;
         BatteryVoltageCurve? curve = null;
         if (config.Battery.VoltageCurve is { Count: >= 2 } points)
             curve = new BatteryVoltageCurve(points.Select(p => (p.Mv, p.Percent)));
@@ -301,6 +316,7 @@ internal sealed class AppHost : ISettingsHost
         _router.UpdateFallback(_devicesByKey.Values);
         UpdateTray();
         _settings?.OnDevicesChanged();
+        MaybeOfferRingSetup(snapshot);
     }
 
     private void OnDeviceRemoved(DeviceSnapshot snapshot)
@@ -444,6 +460,48 @@ internal sealed class AppHost : ISettingsHost
     }
 
     public Task<int?> SetDpiNowAsync(string deviceKey, int dpi) => _devices.SetDpiAsync(deviceKey, dpi);
+
+    public Task<ButtonEvent?> CaptureButtonAsync(Action? armed, CancellationToken ct) =>
+        _devices.CaptureButtonAsync(TimeSpan.FromSeconds(30), armed, ct);
+
+    /// <summary>
+    /// Ersteinrichtung einmalig anbieten, sobald eine Maus bereit ist und noch keine Taste einen Ring öffnet
+    /// (neue Installation – bestehende Belegungen bleiben unberührt).
+    /// </summary>
+    private void MaybeOfferRingSetup(DeviceSnapshot snapshot)
+    {
+        if (_hasRingButton || _ringSetup is not null || _state.State.RingSetupOffered || _tray.Quiet) return;
+        if (snapshot.State != DeviceState.Ready || !snapshot.Controls.Any(c => c.IsDivertable)) return;
+        if (snapshot.Kind is not (DeviceKind.Mouse or DeviceKind.Trackball or DeviceKind.Trackpad or DeviceKind.Unknown)) return;
+
+        _state.State.RingSetupOffered = true;
+        _state.Save();
+        _log.LogInformation("Keine Taste öffnet einen Ring – Ersteinrichtung wird angeboten ({Device})", snapshot.Name);
+        _ringSetup = new RingSetupWindow(this, AssignRingButton);
+        _ringSetup.Closed += (_, _) => _ringSetup = null;
+        _ringSetup.Show();
+    }
+
+    /// <summary>Belegt eine Taste im Standardprofil mit dem Hauptring; <paramref name="replaces"/> verliert ihn wieder.</summary>
+    private void AssignRingButton(ushort cid, ushort? replaces)
+    {
+        var config = ConfigSerializer.Clone(_configStore.Current);
+        string? KeyOf(ushort id) => config.Buttons.Keys.FirstOrDefault(k => ControlIds.TryParse(k, out var c) && c == id);
+
+        if (replaces is { } old && old != cid && KeyOf(old) is { } oldKey && config.Buttons[oldKey] is OpenRingAction)
+            config.Buttons.Remove(oldKey);
+
+        var ring = config.Rings.ContainsKey(DefaultConfig.MainRing) ? DefaultConfig.MainRing : config.Rings.Keys.FirstOrDefault();
+        if (ring is null)
+        {
+            ring = DefaultConfig.MainRing;
+            config.Rings[ring] = DefaultConfig.Create().Rings[ring];
+        }
+        if (KeyOf(cid) is { } existing) config.Buttons.Remove(existing);
+        config.Buttons[ControlIds.Format(cid)] = new OpenRingAction { Ring = ring };
+        _configStore.Save(config);
+        _log.LogInformation("Ersteinrichtung: {Cid} ({Name}) öffnet jetzt den Ring \"{Ring}\"", ControlIds.Format(cid), ControlIds.GetName(cid), ring);
+    }
 
     public void PreviewRing(RingDefinition ring, RingSettings settings, bool isSubmenu) => _ring.ShowPreview(ring, settings, isSubmenu);
 

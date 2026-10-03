@@ -43,7 +43,7 @@ internal sealed class ManagedDevice : IDisposable
     private string? _unitId;
     private ReprogControlsV4Feature? _reprog;
     private BatteryFeature? _battery;
-    private AdjustableDpiFeature? _dpiFeature;
+    private IDpiFeature? _dpiFeature;
     private byte? _wirelessIndex;
     private IReadOnlyList<ControlInfo> _controls = [];
     private IReadOnlyList<int> _supportedDpi = [];
@@ -252,7 +252,7 @@ internal sealed class ManagedDevice : IDisposable
         _reprog = await ReprogControlsV4Feature.TryCreateAsync(_device, ct).ConfigureAwait(false);
         _controls = _reprog is null ? [] : await _reprog.GetAllControlsAsync(ct).ConfigureAwait(false);
         _battery = await BatteryFeature.DetectAsync(_device, ct).ConfigureAwait(false);
-        _dpiFeature = await AdjustableDpiFeature.TryCreateAsync(_device, ct).ConfigureAwait(false);
+        _dpiFeature = await DpiFeature.DetectAsync(_device, ct).ConfigureAwait(false);
         if (_dpiFeature is not null)
         {
             try
@@ -272,7 +272,7 @@ internal sealed class ManagedDevice : IDisposable
             _name, Connection, _protocol, _kind, _unitId, features.Count,
             string.Join(", ", _controls.Select(c => $"{ControlIds.Format(c.ControlId)}{(c.IsDivertable ? "*" : "")}")),
             _battery?.Source.ToString() ?? "–",
-            _supportedDpi.Count > 0 ? $"{_supportedDpi[0]}–{_supportedDpi[^1]}" : "–");
+            _dpiFeature is null ? "–" : $"{(_supportedDpi.Count > 0 ? $"{_supportedDpi[0]}–{_supportedDpi[^1]}" : "?")} (0x{_dpiFeature.FeatureId:X4})");
     }
 
     /// <summary>
@@ -289,10 +289,13 @@ internal sealed class ManagedDevice : IDisposable
             return;
         }
 
+        // Tasten-Erkennung: an Mäusen vorübergehend jede umleitbare echte Taste umleiten (Tastaturen und
+        // virtuelle Tasten bleiben unberührt)
+        var captureAll = config.CaptureAllButtons && IsPointingDevice;
         foreach (var control in _controls)
         {
             var cid = control.ControlId;
-            var wanted = config.DivertControls.Contains(cid);
+            var wanted = config.DivertControls.Contains(cid) || (captureAll && control.IsDivertable && !control.IsVirtual);
             var analyticsCapable = control.Flags.HasFlag(ControlFlags.AnalyticsKeyEvents);
             if (!control.IsDivertable && !analyticsCapable)
             {
@@ -338,16 +341,28 @@ internal sealed class ManagedDevice : IDisposable
                         else _rawXY.Remove(cid);
                     }
                 }
-                else if (config.ClearForeignDiversions && control.IsDivertable &&
-                         (current.Diverted || current.PersistentlyDiverted || current.RawXY || current.ForceRawXY))
+                else
                 {
-                    await _reprog.ClearAllDiversionAsync(cid, ct).ConfigureAwait(false);
-                    lock (_stateLock)
+                    // Eigene Umleitungen, die nicht mehr gebraucht werden (Belegung entfernt, Tasten-Erkennung vorbei),
+                    // immer aufheben; fremde (z.B. von Options+) nur, wenn die Config es verlangt.
+                    var owned = _diverted.Contains(cid);
+                    var active = current.Diverted || current.PersistentlyDiverted || current.RawXY || current.ForceRawXY;
+                    if (active && control.IsDivertable && (owned || config.ClearForeignDiversions))
                     {
-                        _diverted.Remove(cid);
-                        _rawXY.Remove(cid);
+                        await _reprog.ClearAllDiversionAsync(cid, ct).ConfigureAwait(false);
+                        if (owned)
+                            Log.LogDebug("{Device}: Umleitung von {Cid} aufgehoben (nicht mehr belegt)", _name, ControlIds.Format(cid));
+                        else
+                            Log.LogInformation("{Device}: fremde Umleitung von {Cid} aufgehoben ({State})", _name, ControlIds.Format(cid), current.StateText);
                     }
-                    Log.LogInformation("{Device}: fremde Umleitung von {Cid} aufgehoben ({State})", _name, ControlIds.Format(cid), current.StateText);
+                    if (owned)
+                    {
+                        lock (_stateLock)
+                        {
+                            _diverted.Remove(cid);
+                            _rawXY.Remove(cid);
+                        }
+                    }
                 }
 
                 if (config.DisableAnalytics && current.AnalyticsKeyEvents)
@@ -375,7 +390,7 @@ internal sealed class ManagedDevice : IDisposable
         _dpi = state.CurrentDpi;
         var target = _sessionDpi ?? settings.Dpi;
         if (target is not { } t) return;
-        var snapped = AdjustableDpiFeature.Snap(t, _supportedDpi);
+        var snapped = DpiFeature.Snap(t, _supportedDpi);
         if (snapped == _dpi) return;
         _dpi = await _dpiFeature.SetDpiAsync(snapped, 0, ct).ConfigureAwait(false);
         Log.LogInformation("{Device}: DPI {Old} → {New}", _name, state.CurrentDpi, _dpi);
@@ -447,7 +462,7 @@ internal sealed class ManagedDevice : IDisposable
                 if (target is { } t)
                 {
                     var current = (await _dpiFeature.GetDpiAsync(0, ct).ConfigureAwait(false)).CurrentDpi;
-                    if (current != AdjustableDpiFeature.Snap(t, _supportedDpi)) problem = $"DPI war {current} statt {t}";
+                    if (current != DpiFeature.Snap(t, _supportedDpi)) problem = $"DPI war {current} statt {t}";
                 }
             }
         }
@@ -581,7 +596,7 @@ internal sealed class ManagedDevice : IDisposable
         await _configLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var snapped = AdjustableDpiFeature.Snap(dpi, _supportedDpi);
+            var snapped = DpiFeature.Snap(dpi, _supportedDpi);
             _dpi = await _dpiFeature.SetDpiAsync(snapped, 0, ct).ConfigureAwait(false);
             if (rememberForSession) _sessionDpi = snapped;
             Log.LogInformation("{Device}: DPI auf {Dpi} gesetzt", _name, _dpi);
@@ -596,6 +611,9 @@ internal sealed class ManagedDevice : IDisposable
 
     public int? CurrentDpi => _dpi;
     public bool HasDpi => _dpiFeature is not null;
+
+    /// <summary>Maus, Trackball oder Touchpad (unbekannter Typ zählt dazu) – nur dort greift die Tasten-Erkennung.</summary>
+    public bool IsPointingDevice => _kind is DeviceKind.Mouse or DeviceKind.Trackball or DeviceKind.Trackpad or DeviceKind.Unknown;
 
     /// <summary>Beim Beenden: eigene Umleitungen aufheben, damit die Tasten wieder nativ funktionieren.</summary>
     public async Task ResetAllAsync(CancellationToken ct)

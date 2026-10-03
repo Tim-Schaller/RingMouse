@@ -201,6 +201,14 @@ public class ConfigTests
     }
 
     [Fact]
+    public void DefaultConfig_PresetsNoButton_TheFirstRunSetupAsksForIt()
+    {
+        var config = DefaultConfig.Create();
+        Assert.Empty(config.Buttons);
+        Assert.Empty(new ProfileResolver(config).RingControls());
+    }
+
+    [Fact]
     public void Serializer_RoundTrips()
     {
         var config = TestConfigs.Sample();

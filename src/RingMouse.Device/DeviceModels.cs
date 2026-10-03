@@ -55,6 +55,8 @@ public sealed record DeviceConfiguration
     public bool DisableAnalytics { get; init; } = true;
     /// <summary>Umleitungen anderer Software (z.B. Options+) auf nicht belegten Tasten aufheben.</summary>
     public bool ClearForeignDiversions { get; init; } = true;
+    /// <summary>Tasten-Erkennung: zusätzlich jede umleitbare Taste von Mäusen umleiten (setzt der DeviceService nur vorübergehend).</summary>
+    public bool CaptureAllButtons { get; init; }
     public TimeSpan BatteryPollInterval { get; init; } = TimeSpan.FromMinutes(10);
     public BatteryVoltageCurve? VoltageCurve { get; init; }
     public Func<string?, ushort, string?, DeviceSettings> SettingsFor { get; init; } = (_, _, _) => new DeviceSettings();

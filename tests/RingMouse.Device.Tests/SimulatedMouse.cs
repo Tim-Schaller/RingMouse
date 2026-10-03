@@ -18,8 +18,8 @@ internal sealed class SimulatedMouse
         public bool Analytics;
     }
 
-    // Dichte Feature-Tabelle wie bei der echten MX Vertical (Index = Position)
-    private static readonly ushort[] s_featureTable =
+    // Dichte Feature-Tabelle wie bei der echten MX Vertical (Index = Position); DPI-Feature an Index 18
+    private readonly ushort[] _featureTable =
     [
         0x0000, 0x0001, 0x0003, 0x0005, 0x1D4B, 0x0020, 0x0021, 0x0007, 0x1000, 0x1002,
         0x1B04, 0x1C00, 0x1814, 0x1815, 0x2250, 0x18B1, 0x2100, 0x2130, 0x2201,
@@ -40,8 +40,11 @@ internal sealed class SimulatedMouse
     private readonly object _lock = new();
     private SimulatedPort? _port;
 
-    public SimulatedMouse()
+    /// <param name="extendedDpi">wie eine neuere Maus: EXTENDED_ADJUSTABLE_DPI (0x2202) statt 0x2201</param>
+    public SimulatedMouse(bool extendedDpi = false)
     {
+        ExtendedDpi = extendedDpi;
+        if (extendedDpi) _featureTable[18] = 0x2202;
         Info = new HidDeviceInfo
         {
             Path = @"\\?\hid#sim_mx_vertical&col02",
@@ -65,8 +68,10 @@ internal sealed class SimulatedMouse
     }
 
     public HidDeviceInfo Info { get; }
+    public bool ExtendedDpi { get; }
     public Dictionary<ushort, Reporting> State { get; } = new();
     public int Dpi { get; set; } = 1000;
+    public byte Lod { get; set; } = 2;
     public int BatteryPercent { get; set; } = 20;
     public volatile bool Asleep;
     public int RequestCount;
@@ -173,8 +178,8 @@ internal sealed class SimulatedMouse
             {
                 (0, 0) => GetFeature((ushort)((p[0] << 8) | p[1])),
                 (0, 1) => [4, 5, p[2]],
-                (1, 0) => [(byte)(s_featureTable.Length - 1)],
-                (1, 1) => p[0] < s_featureTable.Length ? [(byte)(s_featureTable[p[0]] >> 8), (byte)s_featureTable[p[0]], 0, 0] : null,
+                (1, 0) => [(byte)(_featureTable.Length - 1)],
+                (1, 1) => p[0] < _featureTable.Length ? [(byte)(_featureTable[p[0]] >> 8), (byte)_featureTable[p[0]], 0, 0] : null,
                 (2, 0) => [1, 0x1A, 0x2B, 0x3C, 0x4D, 0x00, 0x0E, 0xB0, 0x20, 0x40, 0x7B, 0xC0, 0x8A, 0x00, 0x00],
                 (2, 1) => [0, (byte)'M', (byte)'P', (byte)'M', 0x16, 0x00, 0x00, 0x09, 0x01, 0xB0, 0x20],
                 (3, 0) => [11],
@@ -186,9 +191,14 @@ internal sealed class SimulatedMouse
                 (10, 2) => GetReporting((ushort)((p[0] << 8) | p[1])),
                 (10, 3) => SetReporting(p),
                 (18, 0) => [1],
-                (18, 1) => [0, 0x01, 0x90, 0xE0, 0x64, 0x0F, 0xA0, 0, 0],
-                (18, 2) => [0, (byte)(Dpi >> 8), (byte)Dpi, 0x03, 0xE8],
-                (18, 3) => SetDpi(p),
+                (18, 1) when !ExtendedDpi => [0, 0x01, 0x90, 0xE0, 0x64, 0x0F, 0xA0, 0, 0],
+                (18, 2) when !ExtendedDpi => [0, (byte)(Dpi >> 8), (byte)Dpi, 0x03, 0xE8],
+                (18, 3) when !ExtendedDpi => SetDpi(p),
+                // 0x2202: Fähigkeiten, DPI-Bereiche 200…8000 in 50er-Schritten (eine Seite), Zustand, Setzen
+                (18, 1) => [p[0], 1, 0x03],
+                (18, 2) => p[2] == 0 ? [p[0], p[1], 0, 0x00, 0xC8, 0xE0, 0x32, 0x1F, 0x40, 0, 0] : [p[0], p[1], p[2]],
+                (18, 5) => [0, (byte)(Dpi >> 8), (byte)Dpi, 0x03, 0xE8, (byte)(Dpi >> 8), (byte)Dpi, 0x03, 0xE8, Lod],
+                (18, 6) => SetExtendedDpi(p),
                 _ => null,
             };
         }
@@ -210,10 +220,17 @@ internal sealed class SimulatedMouse
         return resp;
     }
 
-    private static byte[] GetFeature(ushort id)
+    private byte[] GetFeature(ushort id)
     {
-        var index = Array.IndexOf(s_featureTable, id);
+        var index = Array.IndexOf(_featureTable, id);
         return index >= 0 ? [(byte)index, 0, 1] : [0, 0, 0];
+    }
+
+    private byte[] SetExtendedDpi(ReadOnlySpan<byte> p)
+    {
+        Dpi = (p[1] << 8) | p[2];
+        Lod = p[5];
+        return p[..6].ToArray();
     }
 
     private static byte[] ControlInfo(int i)

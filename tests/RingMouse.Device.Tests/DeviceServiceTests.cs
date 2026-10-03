@@ -21,7 +21,7 @@ public class DeviceServiceTests
 
     private sealed class Harness : IAsyncDisposable
     {
-        public SimulatedMouse Mouse { get; } = new();
+        public SimulatedMouse Mouse { get; }
         public SimulatedTransport Transport { get; }
         public DeviceService Service { get; }
         public ConcurrentQueue<ButtonEvent> Buttons { get; } = new();
@@ -29,8 +29,9 @@ public class DeviceServiceTests
         public ConcurrentQueue<DeviceSnapshot> Removed { get; } = new();
         public ListLogger Log { get; } = new();
 
-        public Harness(int? dpi = null, bool rawXY = true)
+        public Harness(int? dpi = null, bool rawXY = true, bool extendedDpi = false)
         {
+            Mouse = new SimulatedMouse(extendedDpi);
             Transport = new SimulatedTransport(Mouse);
             Service = new DeviceService(Transport, null, Log, FastOptions);
             Service.UpdateConfiguration(new DeviceConfiguration
@@ -102,6 +103,82 @@ public class DeviceServiceTests
         var events = h.Buttons.ToArray();
         Assert.Equal((DpiSwitch, true), (events[0].ControlId, events[0].IsDown));
         Assert.Equal((DpiSwitch, false), (events[1].ControlId, events[1].IsDown));
+    }
+
+    [Fact]
+    public async Task CaptureButton_ReturnsFirstPress_WithoutForwarding_ThenRestoresDiversions()
+    {
+        await using var h = new Harness();
+        await h.StartReadyAsync();
+
+        var armed = new TaskCompletionSource();
+        var capture = h.Service.CaptureButtonAsync(TimeSpan.FromSeconds(5), () => armed.TrySetResult());
+        await armed.Task.WaitAsync(TimeSpan.FromSeconds(4));
+        Assert.True(h.Mouse.Get(0x0052).Diverted);     // während der Erkennung: jede umleitbare Taste umgeleitet
+        Assert.True(h.Mouse.Get(0x0053).Diverted);
+        Assert.True(h.Mouse.Get(DpiSwitch).RawXY);      // die Ring-Taste behält Raw-XY
+        Assert.False(h.Mouse.Get(0x0050).Diverted);     // linke Taste ist nicht umleitbar
+        Assert.False(h.Mouse.Get(0x00D7).Diverted);     // virtuelle Taste lässt sich nicht drücken – bleibt unberührt
+
+        h.Mouse.Press(0x0056);
+        var pressed = await capture.WaitAsync(TimeSpan.FromSeconds(4));
+        Assert.Equal((ushort)0x0056, pressed?.ControlId);
+        h.Mouse.Press();                                 // Loslassen
+
+        await Until(() => !h.Mouse.Get(0x0056).Diverted && !h.Mouse.Get(0x0053).Diverted && !h.Mouse.Get(0x0052).Diverted,
+            "Umleitungen nach der Erkennung zurückgebaut");
+        Assert.True(h.Mouse.Get(DpiSwitch).Diverted);    // normale Belegung bleibt
+        await Task.Delay(100);
+        Assert.Empty(h.Buttons);                          // weder Drücken noch Loslassen gingen an die App
+
+        h.Mouse.Press(DpiSwitch);                         // danach läuft alles wieder normal
+        await Until(() => h.Buttons.Count >= 1, "Ring-Taste wird wieder gemeldet");
+    }
+
+    [Fact]
+    public async Task CaptureButton_Timeout_ReturnsNull_AndRestores_SecondCaptureIsRejected()
+    {
+        await using var h = new Harness();
+        await h.StartReadyAsync();
+
+        using var cts = new CancellationTokenSource();
+        var first = h.Service.CaptureButtonAsync(TimeSpan.FromSeconds(10), ct: cts.Token);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Service.CaptureButtonAsync(TimeSpan.FromSeconds(1)));
+        cts.Cancel();
+        Assert.Null(await first);
+
+        Assert.Null(await h.Service.CaptureButtonAsync(TimeSpan.FromMilliseconds(300)));
+        await Until(() => !h.Mouse.Get(0x0053).Diverted && !h.Mouse.Get(0x0052).Diverted, "nach Zeitablauf zurückgebaut");
+        Assert.True(h.Mouse.Get(DpiSwitch).Diverted);
+    }
+
+    [Fact]
+    public async Task RemovedAssignment_IsUndiverted_EvenWithoutClearingForeignDiversions()
+    {
+        await using var h = new Harness();
+        await h.StartReadyAsync();
+
+        h.Service.UpdateConfiguration(new DeviceConfiguration { DivertControls = new HashSet<ushort>(), ClearForeignDiversions = false });
+        await Until(() => !h.Mouse.Get(DpiSwitch).Diverted, "eigene Umleitung aufgehoben");
+        await Until(() => h.Last?.DivertedControls.Contains(DpiSwitch) == false, "Zustand ohne Umleitung");
+    }
+
+    [Fact]
+    public async Task ExtendedDpi_0x2202_ListAndSet_KeepsLod()
+    {
+        await using var h = new Harness(dpi: 1600, extendedDpi: true);
+        await h.StartReadyAsync();
+
+        Assert.Equal(1600, h.Mouse.Dpi);
+        var s = h.Last!;
+        Assert.Equal(1600, s.Dpi);
+        Assert.Equal(200, s.SupportedDpi[0]);
+        Assert.Equal(8000, s.SupportedDpi[^1]);
+        Assert.Equal(157, s.SupportedDpi.Count);
+        Assert.Equal(2, h.Mouse.Lod); // LOD unverändert
+
+        Assert.Equal(3200, await h.Service.SetDpiAsync(null, 3210));
+        Assert.Equal(3200, h.Mouse.Dpi);
     }
 
     [Fact]

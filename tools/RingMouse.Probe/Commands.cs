@@ -180,7 +180,7 @@ internal static class Commands
         table.Print();
 
         var interesting = new[] { FeatureIds.ReprogControlsV4, FeatureIds.UnifiedBattery, FeatureIds.BatteryVoltage,
-            FeatureIds.BatteryStatus, FeatureIds.AdjustableDpi, FeatureIds.WirelessDeviceStatus };
+            FeatureIds.BatteryStatus, FeatureIds.AdjustableDpi, FeatureIds.ExtendedAdjustableDpi, FeatureIds.WirelessDeviceStatus };
         Console.WriteLine();
         foreach (var id in interesting)
         {
@@ -228,7 +228,9 @@ internal static class Commands
         if (persistent.Count > 0)
             ConsoleOut.Warn($"Dauerhaft umgeleitet/umgemappt: {string.Join(", ", persistent.Select(c => ControlIds.Format(c.ControlId)))} " +
                             "– vermutlich von Options+. Zurücksetzen mit: ringmouse-probe reset --all");
-        ConsoleOut.Hint("  Live testen: ringmouse-probe live --cid 0x00FD   (Strg+C beendet)");
+        var example = divertable.FirstOrDefault(c => ControlIds.GetStandardMouseButton(c.ControlId) == StandardMouseButton.None) ?? divertable.FirstOrDefault();
+        if (example is not null)
+            ConsoleOut.Hint($"  Live testen: ringmouse-probe live --cid {ControlIds.Format(example.ControlId)}   (Strg+C beendet)");
         return 0;
     }
 
@@ -269,17 +271,17 @@ internal static class Commands
 
     public static async Task<int> DpiAsync(ProbeSession s, CancellationToken ct)
     {
-        var dpi = await AdjustableDpiFeature.TryCreateAsync(s.Device, ct).ConfigureAwait(false);
+        var dpi = await DpiFeature.DetectAsync(s.Device, ct).ConfigureAwait(false);
         if (dpi is null)
         {
-            ConsoleOut.Error("Das Gerät hat kein ADJUSTABLE_DPI (0x2201).");
+            ConsoleOut.Error("Das Gerät hat kein DPI-Feature (0x2201 ADJUSTABLE_DPI bzw. 0x2202 EXTENDED_ADJUSTABLE_DPI).");
             return 2;
         }
 
         var sensors = await dpi.GetSensorCountAsync(ct).ConfigureAwait(false);
         var list = await dpi.GetDpiListAsync(0, ct).ConfigureAwait(false);
         var state = await dpi.GetDpiAsync(0, ct).ConfigureAwait(false);
-        ConsoleOut.Heading($"DPI (0x2201 an Index {dpi.FeatureIndex}, v{dpi.Feature.Version})");
+        ConsoleOut.Heading($"DPI (0x{dpi.FeatureId:X4} an Index {dpi.Feature.Index}, v{dpi.Feature.Version})");
         ConsoleOut.KeyValue("Sensoren", sensors.ToString());
         ConsoleOut.KeyValue("Aktuell", $"{state.CurrentDpi} DPI");
         ConsoleOut.KeyValue("Standard", $"{state.DefaultDpi} DPI");
@@ -287,7 +289,7 @@ internal static class Commands
 
         if (s.Options.SetDpi is { } wanted)
         {
-            var target = AdjustableDpiFeature.Snap(wanted, list);
+            var target = DpiFeature.Snap(wanted, list);
             var set = await dpi.SetDpiAsync(target, 0, ct).ConfigureAwait(false);
             var after = await dpi.GetDpiAsync(0, ct).ConfigureAwait(false);
             ConsoleOut.Good($"  DPI gesetzt: angefragt {wanted}, gesetzt {set}, Gerät meldet {after.CurrentDpi}. (Nicht persistent – gilt bis zum Reconnect.)");

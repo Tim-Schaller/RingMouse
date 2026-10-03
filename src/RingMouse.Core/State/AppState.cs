@@ -21,6 +21,9 @@ public sealed class AppState
 {
     public Dictionary<string, DeviceBatteryState> Batteries { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool FirstRunCompleted { get; set; }
+
+    /// <summary>Ersteinrichtung der Ring-Taste wurde angeboten (unabhängig vom Ergebnis nur einmal automatisch).</summary>
+    public bool RingSetupOffered { get; set; }
 }
 
 public sealed class StateStore
