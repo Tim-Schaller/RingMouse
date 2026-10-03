@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>RingMouse.HidPlusPlus</RootNamespace>
+    <Description>HID++ 1.0/2.0 Protokollbibliothek (Logitech) mit schlankem Win32-HID-Transport. Keine Abhängigkeiten.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RingMouse.HidPlusPlus.Tests" />
+  </ItemGroup>
+
+</Project>

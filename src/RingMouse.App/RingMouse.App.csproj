@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>RingMouse</AssemblyName>
+    <RootNamespace>RingMouse.App</RootNamespace>
+    <StartupObject>RingMouse.App.Program</StartupObject>
+    <ApplicationIcon>Assets\ringmouse.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Description>RingMouse – Actions Ring, Akku-Anzeige und Tastenbelegung für Logitech-Mäuse (Ersatz für Logi Options+).</Description>
+  </PropertyGroup>
+
+  <!-- Variante mit uiAccess="true": nur signiert und aus %ProgramFiles% startbar (siehe tools\install-uiaccess.ps1). -->
+  <PropertyGroup Condition="'$(UiAccess)' == 'true'">
+    <ApplicationManifest>app.uiaccess.manifest</ApplicationManifest>
+    <DefineConstants>$(DefineConstants);UIACCESS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.NotifyIcon.Wpf" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RingMouse.HidPlusPlus\RingMouse.HidPlusPlus.csproj" />
+    <ProjectReference Include="..\RingMouse.Core\RingMouse.Core.csproj" />
+    <ProjectReference Include="..\RingMouse.Platform\RingMouse.Platform.csproj" />
+    <ProjectReference Include="..\RingMouse.Device\RingMouse.Device.csproj" />
+    <ProjectReference Include="..\RingMouse.Actions\RingMouse.Actions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\ringmouse.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WPF-Projekte importieren System.IO nicht implizit (Konflikt mit System.Windows.Shapes.Path) -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+</Project>

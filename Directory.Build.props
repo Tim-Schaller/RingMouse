@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <!-- Bewusst ohne Windows-SDK-Version: keine WinRT-Projektion (~25 MB) nötig, alles läuft über Win32. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>de;en</SatelliteResourceLanguages>
+
+    <Version>1.0.0</Version>
+    <Product>RingMouse</Product>
+    <Company>RingMouse</Company>
+    <Authors>Tim Schaller</Authors>
+    <Copyright>Copyright © 2026 Tim Schaller</Copyright>
+
+    <!-- Kein Telemetrie-/Update-Ballast im Build -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1416;WPF0001</NoWarn>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RingMouse.HidPlusPlus/RingMouse.HidPlusPlus.csproj" />
+    <Project Path="src/RingMouse.Core/RingMouse.Core.csproj" />
+    <Project Path="src/RingMouse.Platform/RingMouse.Platform.csproj" />
+    <Project Path="src/RingMouse.Device/RingMouse.Device.csproj" />
+    <Project Path="src/RingMouse.Actions/RingMouse.Actions.csproj" />
+    <Project Path="src/RingMouse.App/RingMouse.App.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/RingMouse.Probe/RingMouse.Probe.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RingMouse.HidPlusPlus.Tests/RingMouse.HidPlusPlus.Tests.csproj" />
+    <Project Path="tests/RingMouse.Core.Tests/RingMouse.Core.Tests.csproj" />
+    <Project Path="tests/RingMouse.Device.Tests/RingMouse.Device.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ringmouse-probe</AssemblyName>
+    <RootNamespace>RingMouse.Probe</RootNamespace>
+    <Description>HID++-Discovery-Werkzeug für Logitech-Geräte (Phase 1 von RingMouse).</Description>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RingMouse.HidPlusPlus\RingMouse.HidPlusPlus.csproj" />
+    <ProjectReference Include="..\..\src\RingMouse.Device\RingMouse.Device.csproj" />
+  </ItemGroup>
+
+</Project>
