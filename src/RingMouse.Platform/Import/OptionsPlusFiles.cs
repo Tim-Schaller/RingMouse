@@ -101,6 +101,9 @@ public static partial class OptionsPlusFiles
         return result;
     }
 
+    /// <summary>Obergrenze für das entpackte ProfileInfo.json (real &lt; 1 MB) – Schutz vor Zip-Bomben/OOM.</summary>
+    private const int MaxPresetBytes = 32 * 1024 * 1024;
+
     /// <summary>ProfileInfo.json aus einem in Options+ exportierten Actions-Ring-Preset (.lp5 = ZIP-Paket).</summary>
     public static string ReadPreset(string lp5Path)
     {
@@ -109,8 +112,22 @@ public static partial class OptionsPlusFiles
                     ?? zip.Entries.FirstOrDefault(e => e.Name.Equals("ProfileInfo.json", StringComparison.OrdinalIgnoreCase))
                     ?? throw new InvalidDataException(L("The file is not an Actions Ring preset (ProfileInfo.json missing).",
                         "Die Datei ist kein Actions-Ring-Preset (ProfileInfo.json fehlt)."));
+        // Deklarierte Größe (Central Directory) vorab prüfen und beim Lesen hart begrenzen (falls der Header lügt).
+        if (entry.Length > MaxPresetBytes) throw TooLarge();
         using var reader = new StreamReader(entry.Open(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        return reader.ReadToEnd();
+        var sb = new StringBuilder();
+        var buffer = new char[16 * 1024];
+        int read;
+        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            if (sb.Length + read > MaxPresetBytes) throw TooLarge();
+            sb.Append(buffer, 0, read);
+        }
+        return sb.ToString();
+
+        static InvalidDataException TooLarge() => new(L(
+            $"ProfileInfo.json is larger than {MaxPresetBytes / (1024 * 1024)} MB – not a valid Actions Ring preset.",
+            $"ProfileInfo.json ist größer als {MaxPresetBytes / (1024 * 1024)} MB – kein gültiges Actions-Ring-Preset."));
     }
 
     private static void CopyShared(string source, string target)

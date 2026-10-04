@@ -33,8 +33,14 @@ public abstract class ActionDefinition
     [JsonIgnore]
     public string TypeName => s_typeNames.TryGetValue(GetType(), out var name) ? name : GetType().Name;
 
-    /// <summary>Kurzbeschreibung für UI und Logs.</summary>
+    /// <summary>Kurzbeschreibung für die UI (darf eigene Nutzerinhalte zeigen).</summary>
     public abstract string Describe();
+
+    /// <summary>
+    /// Beschreibung für Logdateien – ohne potenziell sensible Inhalte (Textbaustein, PowerShell-Befehl, Argumente),
+    /// die sonst im Klartext in <c>logs\ringmouse-*.log</c> landen würden. Standard: wie <see cref="Describe"/>.
+    /// </summary>
+    public virtual string DescribeForLog() => Describe();
 
     public ActionDefinition Clone() => ConfigSerializer.Clone(this);
 }
@@ -96,6 +102,9 @@ public sealed class LaunchAction : ActionDefinition
         var args = string.IsNullOrWhiteSpace(Arguments) ? "" : " " + Arguments;
         return L($"Launch: {Target}{args}", $"Starten: {Target}{args}");
     }
+
+    // Argumente können Zugangsdaten/Geheimnisse enthalten → nicht ins Log.
+    public override string DescribeForLog() => L($"Launch: {Target}", $"Starten: {Target}");
 }
 
 public enum SnippetMode
@@ -110,6 +119,9 @@ public sealed class SnippetAction : ActionDefinition
     public string Text { get; set; } = "";
     public SnippetMode Mode { get; set; } = SnippetMode.Type;
     public override string Describe() => $"Text: {(Text.Length > 40 ? Text[..40] + "…" : Text)}";
+
+    // Textbausteine können Passwörter/TANs/Schlüssel enthalten → nur die Länge ins Log.
+    public override string DescribeForLog() => L($"Text ({Text.Length} chars)", $"Text ({Text.Length} Zeichen)");
 }
 
 [Description("Run a PowerShell script (script) or command (command).")]
@@ -125,6 +137,10 @@ public sealed class PowerShellAction : ActionDefinition
 
     public bool Elevated { get; set; }
     public override string Describe() => Script is { Length: > 0 } ? $"PowerShell: {Script}" : $"PowerShell: {Command}";
+
+    // Inline-Befehl kann Geheimnisse enthalten → nicht ins Log (Skript-Pfad bleibt zur Fehlersuche).
+    public override string DescribeForLog() =>
+        Script is { Length: > 0 } ? $"PowerShell script: {Script}" : L("PowerShell inline command", "PowerShell-Inline-Befehl");
 }
 
 [Description("Capture a screen region (Snipping Tool, like Win+Shift+S).")]

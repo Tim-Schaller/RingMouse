@@ -148,6 +148,8 @@ internal sealed class AppHost : ISettingsHost
         _logging = new AppLogging();
         _log = _logging.Create("RingMouse");
         StartupTrace.Write("Logger ready");
+        // Zugriff auf den Datenordner einschränken (config.json steuert ausführbare Aktionen) – best effort.
+        AppDirectorySecurity.Harden(AppPaths.Root, _logging.Create("Security"));
         _logging.VerifyFileOutput();
         StartUiWatchdog();
         _log.LogInformation(

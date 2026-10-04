@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using RingMouse.Core.Config;
 using RingMouse.Core.Import;
 using RingMouse.Device;
 using static RingMouse.Core.Localization.Lang;
@@ -19,6 +20,8 @@ internal sealed class ImportWindow : Window
     private readonly ListBox _notes = new() { MinHeight = 160, MaxHeight = 300 };
     private readonly Dictionary<ImportParts, CheckBox> _checks = [];
     private readonly Button _apply;
+    private readonly TextBlock _execWarningText = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Border _execWarning;
 
     public ImportWindow(ImportResult result, IReadOnlyList<OptionsPlusDevice>? mice = null, string? selectedMouse = null,
         Func<string?, ImportResult>? rebuild = null)
@@ -58,6 +61,19 @@ internal sealed class ImportWindow : Window
                         "A backup of the current configuration is created first.",
                 "Gewählte Teile ersetzen gleichnamige Ringe, Profile und Geräte-Einstellungen sowie dieselben Tasten; alles andere bleibt. " +
                 "Vorher wird eine Sicherung der aktuellen Konfiguration angelegt."))));
+
+        _execWarning = new Border
+        {
+            Child = _execWarningText,
+            Background = new SolidColorBrush(Color.FromArgb(0x26, 0xE0, 0x6C, 0x00)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0xE0, 0x6C, 0x00)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 4, 0, 8),
+            Visibility = Visibility.Collapsed,
+        };
+        root.Children.Add(_execWarning);
         root.Children.Add(Form.Group(L("Report", "Bericht"), _notes));
 
         _apply = Form.Button(L("Import", "Übernehmen"), () => DialogResult = true, accent: true);
@@ -99,7 +115,31 @@ internal sealed class ImportWindow : Window
         }
         if (Result.Notes.Count == 0)
             _notes.Items.Add(new TextBlock { Text = L("Nothing found to import.", "Nichts zum Importieren gefunden."), Foreground = Brushes.Gray });
+        UpdateExecWarning(c);
         UpdateApply();
+    }
+
+    /// <summary>Warnt sichtbar, wenn die zu importierende Config beim Auslösen Programme/Befehle ausführt.</summary>
+    private void UpdateExecWarning(RingMouseConfig config)
+    {
+        var exec = ConfigInspection.CountExecutable(config);
+        if (exec.Total == 0)
+        {
+            _execWarning.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var parts = new List<string>();
+        if (exec.Launch > 0) parts.Add(L($"{exec.Launch} program start(s)", $"{exec.Launch} Programmstart(s)"));
+        if (exec.PowerShell > 0) parts.Add(L($"{exec.PowerShell} PowerShell action(s)", $"{exec.PowerShell} PowerShell-Aktion(en)"));
+        var what = string.Join(L(" and ", " und "), parts);
+        var admin = exec.AnyElevated ? L(", some requesting admin rights (UAC)", ", teils mit Adminrechten (UAC)") : "";
+        _execWarningText.Text = "⚠ " + L(
+            $"This configuration contains {what} that run programs or commands when the button/segment is triggered{admin}. " +
+            "Only import configurations from a source you trust.",
+            $"Diese Konfiguration enthält {what}, die beim Auslösen der Taste/des Segments Programme oder Befehle ausführen{admin}. " +
+            "Importiere nur Konfigurationen aus einer Quelle, der du vertraust.");
+        _execWarning.Visibility = Visibility.Visible;
     }
 
     private void AddPart(ImportParts part, string text, bool available, Dictionary<ImportParts, bool>? previous, bool defaultChecked = true)

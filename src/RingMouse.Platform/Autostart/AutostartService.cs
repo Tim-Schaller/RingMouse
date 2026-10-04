@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Security;
 using System.Security.Principal;
 using System.Text;
+using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using RingMouse.Core.Config;
@@ -109,11 +110,63 @@ public sealed class AutostartService(ILogger? logger = null)
         try
         {
             File.WriteAllText(xmlPath, BuildTaskXml(exePath, WindowsIdentity.GetCurrent().Name), Encoding.Unicode);
-            return RunElevated("schtasks.exe", $"/Create /TN \"{TaskName}\" /XML \"{xmlPath}\" /F");
+            if (!RunElevated("schtasks.exe", $"/Create /TN \"{TaskName}\" /XML \"{xmlPath}\" /F")) return false;
         }
         finally
         {
             try { File.Delete(xmlPath); } catch { /* egal */ }
+        }
+
+        // Die XML lag kurz in %TEMP% und wurde mit Adminrechten (runas) gelesen. Könnte ein anderer Prozess sie in
+        // diesem Fenster ausgetauscht haben, liefe eine fremde Aufgabe mit höchsten Rechten. Darum die registrierte
+        // Aufgabe zurücklesen und prüfen, dass sie wirklich unsere Exe mit "--autostart" startet – sonst entfernen.
+        if (TaskMatches(exePath)) return true;
+        logger?.LogError("Registered scheduled task does not match the expected command – deleting it.");
+        DeleteTask();
+        return false;
+    }
+
+    /// <summary>Liest die registrierte Aufgabe zurück; true nur, wenn ihre Aktion genau <paramref name="exePath"/> --autostart ist.</summary>
+    private bool TaskMatches(string exePath)
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo("schtasks.exe", $"/Query /TN \"{TaskName}\" /XML")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.Unicode,
+            });
+            if (p is null) return false;
+            var xml = p.StandardOutput.ReadToEnd();
+            if (!p.WaitForExit(5000) || p.ExitCode != 0) return false;
+
+            XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
+            var exec = XDocument.Parse(xml).Descendants(ns + "Exec").FirstOrDefault();
+            var command = exec?.Element(ns + "Command")?.Value;
+            var arguments = exec?.Element(ns + "Arguments")?.Value?.Trim();
+            return arguments == "--autostart" && SamePath(command, exePath);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Could not verify the scheduled task");
+            return false;
+        }
+    }
+
+    private static bool SamePath(string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+        try
+        {
+            return string.Equals(Path.GetFullPath(a.Trim().Trim('"')), Path.GetFullPath(b.Trim().Trim('"')),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
         }
     }
 

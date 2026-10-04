@@ -48,17 +48,18 @@ else {
         $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $Subject -CertStoreLocation Cert:\LocalMachine\My `
             -KeyExportPolicy NonExportable -KeyUsage DigitalSignature -HashAlgorithm SHA256 -NotAfter (Get-Date).AddYears(10)
     }
-    # Nur diesem Rechner das (öffentliche) Zertifikat als vertrauenswürdig bekannt machen
-    foreach ($storeName in 'Root', 'TrustedPublisher') {
-        $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, 'LocalMachine')
-        $store.Open('ReadWrite')
-        if (-not ($store.Certificates | Where-Object Thumbprint -eq $cert.Thumbprint)) {
-            $public = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList (, $cert.Export('Cert'))
-            $store.Add($public)
-            Write-Host "Certificate added to LocalMachine\$storeName." -ForegroundColor Cyan
-        }
-        $store.Close()
+    # Nur diesem Rechner das (öffentliche) Zertifikat als vertrauenswürdig bekannt machen.
+    # Es reicht der Root-Store: Windows verlangt für uiAccess eine gültige Authenticode-Kette, und ein
+    # selbstsigniertes Zertifikat ist seine eigene Wurzel. Der TrustedPublisher-Store ist dafür NICHT nötig
+    # und würde das Vertrauen unnötig ausweiten (Software dieses Herausgebers würde pauschal akzeptiert).
+    $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('Root', 'LocalMachine')
+    $store.Open('ReadWrite')
+    if (-not ($store.Certificates | Where-Object Thumbprint -eq $cert.Thumbprint)) {
+        $public = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList (, $cert.Export('Cert'))
+        $store.Add($public)
+        Write-Host "Certificate added to LocalMachine\Root." -ForegroundColor Cyan
     }
+    $store.Close()
 }
 
 # 2) Laufende Instanz beenden (setzt ihre Tastenumleitungen zurück)

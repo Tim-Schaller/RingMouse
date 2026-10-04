@@ -59,7 +59,7 @@ public sealed class ActionExecutor : IDisposable
     {
         if (DryRun)
         {
-            _logger.LogInformation("Action {Action} ({Source}) not executed (dry run)", action.Describe(), source);
+            _logger.LogInformation("Action {Action} ({Source}) not executed (dry run)", action.DescribeForLog(), source);
             return;
         }
         if (!_queue.IsAddingCompleted) _queue.Add((action, source, target ?? ForegroundWindow.Capture()));
@@ -84,12 +84,12 @@ public sealed class ActionExecutor : IDisposable
             try
             {
                 Execute(action, source, target);
-                _logger.LogInformation("Action {Action} ({Source}) → {Target} in {Ms} ms", action.Describe(), source,
+                _logger.LogInformation("Action {Action} ({Source}) → {Target} in {Ms} ms", action.DescribeForLog(), source,
                     target.ProcessName ?? "?", sw.ElapsedMilliseconds);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Action {Action} ({Source}) failed", action.Describe(), source);
+                _logger.LogError(ex, "Action {Action} ({Source}) failed", action.DescribeForLog(), source);
                 Failed?.Invoke(new ActionFailure(source, $"{action.Describe()}: {ex.Message}"));
             }
         }
