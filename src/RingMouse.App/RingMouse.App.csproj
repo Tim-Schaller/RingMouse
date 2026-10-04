@@ -8,7 +8,7 @@
     <StartupObject>RingMouse.App.Program</StartupObject>
     <ApplicationIcon>Assets\ringmouse.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Description>RingMouse – Actions Ring, battery level and button assignments for Logitech mice (replacement for Logi Options+).</Description>
+    <Description>RingMouse – Actions Ring, battery level and button assignments for Logitech mice (an alternative to the Actions Ring of Logi Options+).</Description>
   </PropertyGroup>
 
   <!-- Variante mit uiAccess="true": nur signiert und aus %ProgramFiles% startbar (siehe tools\install-uiaccess.ps1). -->

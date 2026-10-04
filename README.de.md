@@ -1,8 +1,10 @@
 # RingMouse
 
-Schlanker Ersatz für **Logi Options+** unter Windows 11: **Actions Ring** auf einer Maustaste, **Akku-Anzeige** im Tray
-mit Warnungen, **DPI**, Belegung weiterer Tasten und **App-Profile** – für Logitech-Mäuse. Kein Treiber, keine
-Adminrechte, **keine Telemetrie, keine Netzwerkzugriffe**.
+Der **Actions Ring** von Logi Options+ als kleine eigenständige App für Windows 11 – dazu die Mausfunktionen, die
+dazugehören: **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer Tasten und **App-Profile** für
+Logitech-Mäuse. RingMouse übernimmt nur diese Mausfunktionen; alles andere von Options+ (Tastaturen, Webcams, Flow,
+Smart Actions, Beleuchtung, Firmware-Updates …) gehört nicht dazu. Kein Treiber, keine Adminrechte, **keine
+Telemetrie, keine Netzwerkzugriffe**.
 
 🇬🇧 [English version](README.md)
 
@@ -65,8 +67,10 @@ schaltet die „Analytics“-Meldungen für jeden Klick wieder ein.
    `LogiPluginService` beenden.
 2. RingMouse starten. Im Log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) sollte eine Zeile wie
    `<Mausname> configured … diverted [0x…] Raw-XY [0x…]` mit der CID deiner Ring-Taste stehen (Logs sind englisch).
-3. Klappt alles: **Logi Options+** deinstallieren. Den **Logi Plugin Service** gleich mit entfernen, er ist der Unterbau
-   des Options+-Actions-Rings.
+3. Klappt alles und hast du Options+ nur für diese Maus genutzt: **Logi Options+** deinstallieren. Den **Logi Plugin
+   Service** gleich mit entfernen, er ist der Unterbau des Options+-Actions-Rings. Brauchst du Options+ weiter für andere
+   Geräte (z.B. Tastatur oder Webcam), behalte es – lass die Maus aber nur von einem der beiden Programme steuern; beide
+   gleichzeitig sind nicht getestet.
 4. Hat Options+ Tasten *dauerhaft* umgeleitet, zeigt `ringmouse-probe controls` bei diesen Tasten `PERSIST`.
    Zurücksetzen geht mit `ringmouse-probe reset`. RingMouse räumt fremde Umleitungen auf nicht belegten Tasten beim
    Start ohnehin selbst auf.

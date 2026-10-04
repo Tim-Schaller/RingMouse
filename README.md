@@ -1,8 +1,10 @@
 # RingMouse
 
-A lightweight replacement for **Logi Options+** on Windows 11: an **Actions Ring** on a mouse button, the **battery
-level** in the tray with warnings, **DPI**, assignments for further buttons and **per-app profiles** – for Logitech mice.
-No driver, no admin rights, **no telemetry, no network access**.
+The **Actions Ring** of Logi Options+ as a small standalone app for Windows 11 – plus the mouse functions that go with
+it: the **battery level** in the tray with warnings, **DPI**, assignments for further buttons and **per-app profiles**
+for Logitech mice. RingMouse covers only these mouse functions; everything else Options+ does (keyboards, webcams, Flow,
+Smart Actions, lighting, firmware updates …) is not part of it. No driver, no admin rights, **no telemetry, no network
+access**.
 
 🇩🇪 [Deutsche Fassung](README.de.md)
 
@@ -63,8 +65,10 @@ Options+ and RingMouse compete for the same buttons. Options+ re-applies its div
    Manager.
 2. Start RingMouse. The log (`%APPDATA%\RingMouse\logs\ringmouse-*.log`) should contain a line like
    `<mouse name> configured … diverted [0x…] Raw-XY [0x…]` with the CID of your ring button.
-3. If everything works: uninstall **Logi Options+**. Remove the **Logi Plugin Service** as well – it is the basis of the
-   Options+ Actions Ring.
+3. If everything works and you used Options+ only for this mouse: uninstall **Logi Options+**. Remove the **Logi Plugin
+   Service** as well – it is the basis of the Options+ Actions Ring. If you still need Options+ for other devices (e.g. a
+   keyboard or webcam), keep it – but let only one of the two programs handle the mouse; running both side by side is
+   not tested.
 4. If Options+ diverted buttons *persistently*, `ringmouse-probe controls` shows `PERSIST` for them. `ringmouse-probe
    reset` resets them. RingMouse also clears foreign diversions on unassigned buttons at startup by itself.
 
