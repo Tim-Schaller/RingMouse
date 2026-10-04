@@ -1,4 +1,6 @@
-# RingMouse
+<p align="center">
+  <img src="docs/images/en/hero.png" alt="RingMouse – the Actions Ring for Logitech mice" width="880">
+</p>
 
 The **Actions Ring** of Logi Options+ as a small standalone app for Windows 11 – plus the mouse functions that go with
 it: the **battery level** in the tray with warnings, **DPI**, assignments for further buttons and **per-app profiles**
@@ -20,6 +22,27 @@ access**.
 **Supported mice:** Logitech mice with HID++ 2.0 – directly via Bluetooth, through a Bolt or Unifying receiver, or by
 cable. Battery via `0x1004`, `0x1001` or `0x1000`, DPI via `0x2201` or `0x2202`. So far tested with the MX Vertical over
 Bluetooth; other models should work – feedback is welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+### Screenshots
+
+**The ring** – follows the Windows theme; size, colors and opacity are adjustable:
+
+<p>
+  <img src="docs/images/en/ring-dark.png" alt="Actions Ring, dark" width="390">
+  <img src="docs/images/en/ring-light.png" alt="Actions Ring, light" width="390">
+</p>
+
+**Settings** – edit rings with a live preview; choose a button simply by pressing it:
+
+<img src="docs/images/en/settings-rings.png" alt="Settings: rings" width="800">
+<img src="docs/images/en/settings-buttons.png" alt="Settings: buttons" width="800">
+
+**First start** – press the button for the ring, or take over your setup from Logi Options+:
+
+<p>
+  <img src="docs/images/en/setup.png" alt="First-run setup" width="390">
+  <img src="docs/images/en/import.png" alt="Import from Logi Options+" width="390">
+</p>
 
 ---
 
@@ -354,7 +377,8 @@ tests/…                     unit tests: protocol (incl. replayed real MX Verti
 - .NET 10 (LTS until 11/2028), self-contained, win-x64. The SDK's CLI telemetry is turned off in the script.
 - `RingMouse.exe --exit` quits a running instance cleanly (like tray → Exit; diversions are reset), e.g. before an update.
   Exit code 0 = quit or was not running.
-- `RingMouse.exe --render-ui <folder>` renders the ring, tray icons and settings pages as PNG files, without a mouse.
+- `RingMouse.exe --render-ui <folder>` renders the ring, tray icons and settings pages as PNG files, without a mouse –
+  in English and German, plus the logo and the app icon (`ringmouse.ico`). The pictures in `docs/images` come from it.
 - `RingMouse.exe --selftest --quiet` checks the real path: device configured, ring visible, focus kept, clean exit. The
   result is in the log. Actions only run as a dry run (nothing is executed); don't move the mouse meanwhile.
 - Manual test checklist for contributors: [docs/testing.md](docs/testing.md).

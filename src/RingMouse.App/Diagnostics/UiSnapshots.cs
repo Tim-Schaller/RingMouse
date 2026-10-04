@@ -29,6 +29,95 @@ internal static class UiSnapshots
             Lang.Apply(language);
             RenderLanguage(Path.Combine(directory, folder));
         }
+        RenderLogo(directory);
+    }
+
+    /// <summary>Logo in mehreren Größen, App-Icon und eine Vorschau aller Icon-Größen nebeneinander.</summary>
+    private static void RenderLogo(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        foreach (var size in new[] { 128, 256, 512 })
+            LogoRenderer.WritePng(Path.Combine(directory, $"logo-{size}.png"), size);
+        LogoRenderer.WriteIco(Path.Combine(directory, "ringmouse.ico"));
+
+        foreach (var dark in new[] { true, false })
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Background = new SolidColorBrush(dark ? Color.FromRgb(0x0D, 0x11, 0x17) : Colors.White) };
+            foreach (var size in LogoRenderer.IconSizes)
+                row.Children.Add(new Image { Source = LogoRenderer.Render(size), Width = size, Height = size, Margin = new Thickness(8), VerticalAlignment = VerticalAlignment.Center });
+            row.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            SaveElement(row, row.DesiredSize.Width, row.DesiredSize.Height, 1, Path.Combine(directory, $"logo-sizes-{(dark ? "dark" : "light")}.png"), null);
+        }
+    }
+
+    /// <summary>Titelbild fürs README: echter Ring (Durchschieben ins Untermenü) neben Logo, Name und Kurzbeschreibung.</summary>
+    private static void RenderHero(RingMouseConfig config, string path)
+    {
+        const double width = 1280, height = 640;
+        var root = new Grid
+        {
+            Width = width,
+            Height = height,
+            Background = new LinearGradientBrush(Color.FromRgb(0x0B, 0x12, 0x20), Color.FromRgb(0x2A, 0x23, 0x5C), new Point(0, 0), new Point(1, 1)),
+            ClipToBounds = true,
+        };
+
+        // weiches Leuchten hinter dem Ring
+        var glow = new System.Windows.Shapes.Ellipse
+        {
+            Width = 760,
+            Height = 760,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(390 - 380, 320 - 380, 0, 0),
+            Fill = new RadialGradientBrush(Color.FromArgb(0x70, 0x5B, 0x6C, 0xF5), Color.FromArgb(0x00, 0x5B, 0x6C, 0xF5)),
+        };
+        root.Children.Add(glow);
+
+        var ring = RingVisual.Build(config.Rings["main"], RingTheme.Create(ThemePreference.Dark), config.Ring, false);
+        ring.SetHighlight(2);
+        ring.UpdatePointer(104, 0, visible: true);
+        ring.SetPushProgress(0.55);
+        var scale = 520 / ring.Size;
+        var ringHost = new Border
+        {
+            Child = ring.Root,
+            Width = ring.Size,
+            Height = ring.Size,
+            LayoutTransform = new ScaleTransform(scale, scale),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(390 - 260, 0, 0, 0),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 48, ShadowDepth = 0, Opacity = 0.6, Color = Colors.Black },
+        };
+        root.Children.Add(ringHost);
+
+        var font = new FontFamily("Segoe UI Variable Display, Segoe UI");
+        var text = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(720, 0, 40, 0) };
+        text.Children.Add(new Image { Source = LogoRenderer.Render(256), Width = 112, Height = 112, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 18) });
+        text.Children.Add(new TextBlock { Text = "RingMouse", FontFamily = font, FontSize = 76, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White });
+        text.Children.Add(new TextBlock
+        {
+            Text = L("The Actions Ring for Logitech mice", "Der Actions Ring für Logitech-Mäuse"),
+            FontFamily = font,
+            FontSize = 30,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(2, 6, 0, 0),
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = L("Battery · DPI · Buttons · App profiles\nNo telemetry · No network access",
+                "Akku · DPI · Tasten · App-Profile\nKeine Telemetrie · Kein Netzwerk"),
+            FontFamily = font,
+            FontSize = 21,
+            LineHeight = 32,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+            Margin = new Thickness(2, 22, 0, 0),
+        });
+        root.Children.Add(text);
+
+        SaveElement(root, width, height, 1, path, null);
     }
 
     private static void RenderLanguage(string directory)
@@ -36,6 +125,7 @@ internal static class UiSnapshots
         Directory.CreateDirectory(directory);
         var config = DefaultConfig.Create();
         config.Ring.Animation = false; // Momentaufnahmen: Endzustand statt Animationsbeginn
+        RenderHero(config, Path.Combine(directory, "hero.png"));
 
         foreach (var dark in new[] { true, false })
         {

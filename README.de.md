@@ -1,4 +1,6 @@
-# RingMouse
+<p align="center">
+  <img src="docs/images/de/hero.png" alt="RingMouse – der Actions Ring für Logitech-Mäuse" width="880">
+</p>
 
 Der **Actions Ring** von Logi Options+ als kleine eigenständige App für Windows 11 – dazu die Mausfunktionen, die
 dazugehören: **Akku-Anzeige** im Tray mit Warnungen, **DPI**, Belegung weiterer Tasten und **App-Profile** für
@@ -21,6 +23,27 @@ Telemetrie, keine Netzwerkzugriffe**.
 oder per Kabel. Akku über `0x1004`, `0x1001` oder `0x1000`, DPI über `0x2201` oder `0x2202`. Getestet ist bisher die
 MX Vertical über Bluetooth; andere Modelle sollten funktionieren – Rückmeldungen sind willkommen (siehe
 [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+### Screenshots
+
+**Der Ring** – folgt dem Windows-Design; Größe, Farben und Deckkraft sind einstellbar:
+
+<p>
+  <img src="docs/images/de/ring-dark.png" alt="Actions Ring, dunkel" width="390">
+  <img src="docs/images/de/ring-light.png" alt="Actions Ring, hell" width="390">
+</p>
+
+**Einstellungen** – Ringe mit Live-Vorschau bearbeiten; Tasten wählst du einfach durch Drücken:
+
+<img src="docs/images/de/settings-rings.png" alt="Einstellungen: Ringe" width="800">
+<img src="docs/images/de/settings-buttons.png" alt="Einstellungen: Tasten" width="800">
+
+**Erster Start** – Taste für den Ring drücken oder die Einrichtung aus Logi Options+ übernehmen:
+
+<p>
+  <img src="docs/images/de/setup.png" alt="Ersteinrichtung" width="390">
+  <img src="docs/images/de/import.png" alt="Import aus Logi Options+" width="390">
+</p>
 
 ---
 
