@@ -1,9 +1,9 @@
 # Security Policy
 
-RingMouse runs locally, drives Logitech mice over HID++ and opens **no network
-connections** (no telemetry, no update check, no account). Everything stays on
-your PC. This document describes the trust model, the known residual risks and
-how to report a vulnerability.
+RingMouse runs locally and drives Logitech mice over HID++. Its **only network
+connection** is the signed update check on GitHub (opt-out, see below); there is
+no telemetry and no account. This document describes the trust model, the known
+residual risks and how to report a vulnerability.
 
 ## Reporting a vulnerability
 
@@ -88,6 +88,26 @@ RingMouse only writes **non-persistent** device state (temporary button diversio
 with the persist bit cleared, non-persistent DPI that is validated against the
 device's supported list and clamped to 50–32000). It never writes firmware,
 device-reset or out-of-band registers. Its own diversions are reset on exit.
+
+## Automatic updates
+
+RingMouse checks GitHub for a new release a few minutes after start and every 12 hours
+(opt-out under Settings → General). The mechanism is signature-based:
+
+- Each release carries a `latest.json` manifest (new version, file, size, SHA-256, notes).
+  The manifest is **signed with a private release key (RSA) that exists only on the
+  maintainer's machine**; only the public key is embedded in RingMouse. Taking over the
+  download source or the GitHub account is therefore not enough to distribute foreign
+  code — a valid signature over a *newer* version is required, and an equal or older
+  version is never installed.
+- The downloaded executable is verified against the manifest's size and SHA-256 before use.
+- The standard (single-file) RingMouse replaces itself: it renames the running
+  `RingMouse.exe` to `.old`, puts the new one in its place and restarts, by default once
+  the PC has been idle for a few minutes.
+- The **uiAccess variant is not updated automatically** — it lives in a protected folder
+  and is locally signed, so a replacement would need admin rights and would invalidate its
+  signature. RingMouse only notifies you there; update it manually and re-run
+  `install-uiaccess.ps1`.
 
 ## Release integrity
 

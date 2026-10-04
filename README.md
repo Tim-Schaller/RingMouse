@@ -342,7 +342,8 @@ Example – findings for an MX Vertical over Bluetooth:
 
 ## Privacy
 
-RingMouse has no telemetry and makes no network connections. Everything stays on your computer:
+RingMouse has no telemetry. Its only network connection is the update check on GitHub (signed releases; can be
+turned off under Settings → General). Everything else stays on your computer:
 - `%APPDATA%\RingMouse\` – `config.json`, `config.schema.json`, `state.json` (last battery levels), `logs\`
 - `%LOCALAPPDATA%\RingMouse\startup.log` – a small start-up trace
 

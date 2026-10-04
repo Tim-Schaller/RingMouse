@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>RingMouse.ReleaseKey</RootNamespace>
+    <AssemblyName>ringmouse-releasekey</AssemblyName>
+    <Description>Release signing tool: generate the key pair and build/sign/verify latest.json. Not shipped.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RingMouse.Core\RingMouse.Core.csproj" />
+  </ItemGroup>
+
+</Project>

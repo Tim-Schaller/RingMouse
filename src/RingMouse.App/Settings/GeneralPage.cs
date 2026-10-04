@@ -129,7 +129,12 @@ internal sealed class GeneralPage : UserControl
                 TextWrapping = TextWrapping.Wrap,
             }),
             Form.Row(L("Network/telemetry", "Netzwerk/Telemetrie"),
-                new TextBlock { Text = L("none – RingMouse opens no network connections", "keine – RingMouse öffnet keine Netzwerkverbindungen") })));
+                new TextBlock
+                {
+                    Text = L("only the update check on GitHub (can be turned off above); no telemetry",
+                        "nur die Update-Prüfung auf GitHub (oben abschaltbar); keine Telemetrie"),
+                    TextWrapping = TextWrapping.Wrap,
+                })));
 
         Content = Form.Scroll(stack);
     }
