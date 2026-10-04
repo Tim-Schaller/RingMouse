@@ -67,8 +67,10 @@ public sealed record ControlInfo(int Index, ushort ControlId, ushort TaskId, Con
     /// <summary>getCidInfo: [CID(2) TID(2) Flags Pos Group GMask AdditionalFlags].</summary>
     public static ControlInfo Parse(int index, ReadOnlySpan<byte> d)
     {
-        var flags = (ControlFlags)(d[4] | (d.Length > 8 ? d[8] << 8 : 0));
-        return new ControlInfo(index, (ushort)((d[0] << 8) | d[1]), (ushort)((d[2] << 8) | d[3]), flags, d[5], d[6], d[7]);
+        // Fehlende Bytes (kurze/fehlerhafte Antwort) als 0 behandeln statt eine IndexOutOfRangeException zu werfen.
+        static byte B(ReadOnlySpan<byte> s, int i) => i < s.Length ? s[i] : (byte)0;
+        var flags = (ControlFlags)(B(d, 4) | (B(d, 8) << 8));
+        return new ControlInfo(index, (ushort)((B(d, 0) << 8) | B(d, 1)), (ushort)((B(d, 2) << 8) | B(d, 3)), flags, B(d, 5), B(d, 6), B(d, 7));
     }
 }
 
@@ -97,14 +99,15 @@ public sealed record ControlReporting(ushort ControlId, bool Diverted, bool Pers
     /// <summary>[CID(2) Flags Remap(2) Flags2] – Valid-Bits werden ignoriert.</summary>
     public static ControlReporting Parse(ReadOnlySpan<byte> d)
     {
-        var flags = d[2];
+        static byte B(ReadOnlySpan<byte> s, int i) => i < s.Length ? s[i] : (byte)0; // kurze Antwort nicht crashen lassen
+        var flags = B(d, 2);
         return new ControlReporting(
-            (ushort)((d[0] << 8) | d[1]),
+            (ushort)((B(d, 0) << 8) | B(d, 1)),
             (flags & 0x01) != 0,
             (flags & 0x04) != 0,
             (flags & 0x10) != 0,
             (flags & 0x40) != 0,
-            (ushort)((d[3] << 8) | d[4]),
+            (ushort)((B(d, 3) << 8) | B(d, 4)),
             d.Length > 5 && (d[5] & 0x01) != 0);
     }
 }
@@ -232,6 +235,7 @@ public sealed class ReprogControlsV4Feature
         dx = dy = 0;
         if (!HidppEvents.IsEvent(message, featureIndex, EventRawXY)) return false;
         var p = message.Payload;
+        if (p.Length < 4) return false; // als Short gesendetes/verkürztes Event ignorieren statt zu werfen
         dx = (short)((p[0] << 8) | p[1]);
         dy = (short)((p[2] << 8) | p[3]);
         return true;

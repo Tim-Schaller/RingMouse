@@ -213,7 +213,9 @@ internal sealed class RingVisual
 
     public static RingVisual Build(RingDefinition ring, RingTheme theme, RingSettings settings, bool isSubmenu)
     {
-        var radius = settings.Radius;
+        // Untergrenze wie im ConfigValidator: schützt die Geometrie (u.a. Math.Clamp(chord, 64, 132*k), outer = radius-3)
+        // vor degenerierten Werten, falls Build je mit einer unvalidierten Config aufgerufen wird.
+        var radius = Math.Max(settings.Radius, 80);
         var size = 2 * (radius + Margin);
         var c = size / 2;
         var k = radius / 150.0;

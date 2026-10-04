@@ -52,9 +52,11 @@ public sealed record FirmwareEntity(int Index, byte Type, string Prefix, byte Nu
 
     public static FirmwareEntity Parse(int index, ReadOnlySpan<byte> d)
     {
-        var prefix = Encoding.ASCII.GetString(d.Slice(1, 3)).TrimEnd('\0', ' ');
-        return new FirmwareEntity(index, d[0], prefix, d[4], d[5], (ushort)((d[6] << 8) | d[7]),
-            (d[8] & 0x01) != 0, (ushort)((d[9] << 8) | d[10]));
+        // Fehlende Bytes (kurze/fehlerhafte Antwort) als 0 behandeln statt zu werfen.
+        static byte B(ReadOnlySpan<byte> s, int i) => i < s.Length ? s[i] : (byte)0;
+        var prefix = d.Length >= 4 ? Encoding.ASCII.GetString(d.Slice(1, 3)).TrimEnd('\0', ' ') : "";
+        return new FirmwareEntity(index, B(d, 0), prefix, B(d, 4), B(d, 5), (ushort)((B(d, 6) << 8) | B(d, 7)),
+            (B(d, 8) & 0x01) != 0, (ushort)((B(d, 9) << 8) | B(d, 10)));
     }
 }
 
@@ -66,15 +68,17 @@ public sealed record DeviceFirmwareInfo(int EntityCount, uint UnitId, ushort Tra
 
     public static DeviceFirmwareInfo Parse(ReadOnlySpan<byte> d)
     {
-        var unitId = (uint)((d[1] << 24) | (d[2] << 16) | (d[3] << 8) | d[4]);
-        var transport = (ushort)((d[5] << 8) | d[6]);
+        // Fehlende Bytes (kurze/fehlerhafte Antwort) als 0 behandeln statt zu werfen.
+        static byte B(ReadOnlySpan<byte> s, int i) => i < s.Length ? s[i] : (byte)0;
+        var unitId = (uint)((B(d, 1) << 24) | (B(d, 2) << 16) | (B(d, 3) << 8) | B(d, 4));
+        var transport = (ushort)((B(d, 5) << 8) | B(d, 6));
         var models = new List<ushort>(3);
         for (var i = 0; i < 3; i++)
         {
-            var pid = (ushort)((d[7 + i * 2] << 8) | d[8 + i * 2]);
+            var pid = (ushort)((B(d, 7 + i * 2) << 8) | B(d, 8 + i * 2));
             if (pid != 0) models.Add(pid);
         }
-        return new DeviceFirmwareInfo(d[0], unitId, transport, models, d[13], d[14]);
+        return new DeviceFirmwareInfo(B(d, 0), unitId, transport, models, B(d, 13), B(d, 14));
     }
 }
 

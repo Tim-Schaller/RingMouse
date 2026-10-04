@@ -53,7 +53,7 @@ internal static class BatteryIcon
                 else dc.DrawGeometry(null, pen, Arc(center, radius, Math.Max(level, 4) / 100.0 * 360));
             }
 
-            var innerRadius = radius - thickness / 2;
+            var innerRadius = Math.Max(radius - thickness / 2, 1); // nie ≤ 0 (sonst negative Schriftgröße bei winziger Icongröße)
             if (percent is null && charging)
                 DrawBolt(dc, textColor, center, innerRadius); // MX Vertical meldet beim Laden keinen Prozentwert
             else if (level >= 100)

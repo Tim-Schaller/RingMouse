@@ -561,12 +561,20 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
             return;
         }
 
-        // Erst Handler anmelden und die Sitzung eintragen, dann die Lese-Threads starten: ein sofortiges Closed
-        // (Gerät startet neu, BLE-Verbindung flattert) ginge sonst verloren und die tote Sitzung bliebe stehen.
+        // Sitzung zuerst atomar eintragen: Läuft nach einem Watchdog-Neustart kurz eine zweite Loop-Generation,
+        // darf sie eine bestehende Sitzung nicht überschreiben (der alte Kanal würde sonst verwaisen, nicht disposed).
+        // Handler sind hier noch nicht angemeldet, ein Dispose des Duplikats löst daher kein OnChannelClosed aus.
         var session = new EndpointSession(endpoint, channel);
+        if (!_sessions.TryAdd(endpoint.Key, session))
+        {
+            _logger.LogDebug("{Device}: a session is already registered – discarding the duplicate channel", endpoint.DisplayName);
+            channel.Dispose();
+            return;
+        }
+        // Handler vor dem Start der Lese-Threads anmelden, damit ein sofortiges Closed (Neustart, flatternde
+        // BLE-Verbindung) nicht verloren geht und die tote Sitzung stehen bleibt.
         channel.FrameTraced += ForwardFrame;
         channel.Closed += (_, error) => OnChannelClosed(endpoint.Key, session, error);
-        _sessions[endpoint.Key] = session;
         _retryAfter.TryRemove(endpoint.Key, out _);
         channel.Start();
         if (channel.IsClosed) return; // gleich wieder zu – OnChannelClosed hat aufgeräumt

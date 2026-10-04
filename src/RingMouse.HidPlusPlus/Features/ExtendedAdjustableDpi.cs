@@ -56,6 +56,7 @@ public sealed class ExtendedAdjustableDpiFeature : IDpiFeature
 
     public async Task<int> SetDpiAsync(int dpi, int sensor = 0, CancellationToken ct = default)
     {
+        dpi = DpiFeature.Clamp(dpi);
         var lod = (await GetExtendedDpiAsync(sensor, ct).ConfigureAwait(false)).Lod;
         var r = await _device.CallAsync(FeatureIndex, 0x06,
             [(byte)sensor, (byte)(dpi >> 8), (byte)dpi, (byte)(dpi >> 8), (byte)dpi, lod], ct).ConfigureAwait(false);

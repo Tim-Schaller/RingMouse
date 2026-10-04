@@ -20,9 +20,15 @@ public static class DpiFeature
         (IDpiFeature?)await AdjustableDpiFeature.TryCreateAsync(device, ct).ConfigureAwait(false)
         ?? await ExtendedAdjustableDpiFeature.TryCreateAsync(device, ct).ConfigureAwait(false);
 
-    /// <summary>Nächstgelegener unterstützter Wert.</summary>
+    /// <summary>Plausibler DPI-Bereich (wie im ConfigValidator) – schützt vor unsinnigen Werten am Draht.</summary>
+    public const int MinDpi = 50;
+    public const int MaxDpi = 32000;
+
+    public static int Clamp(int dpi) => Math.Clamp(dpi, MinDpi, MaxDpi);
+
+    /// <summary>Nächstgelegener unterstützter Wert; ohne bekannte Liste auf einen plausiblen Bereich begrenzt.</summary>
     public static int Snap(int dpi, IReadOnlyList<int> supported) =>
-        supported.Count == 0 ? dpi : supported.MinBy(v => Math.Abs(v - dpi));
+        supported.Count == 0 ? Clamp(dpi) : supported.MinBy(v => Math.Abs(v - dpi));
 
     /// <summary>
     /// DPI-Werteliste (BE, 2 Byte je Wert, Ende bei 0). Ein Wert ≥ 0xE000 ist eine Schrittweite zwischen dem vorigen
@@ -38,8 +44,11 @@ public static class DpiFeature
             raw.Add(v);
         }
 
+        // Reale Geräte melden höchstens einige Hundert DPI-Stufen (z.B. 100–25600 in 50er-Schritten = 511).
+        // Der großzügige Deckel lässt die voll zu, begrenzt aber eine gerätegesteuerte Riesen-Expansion (step=1).
+        const int maxValues = 2000;
         var result = new List<int>();
-        for (var i = 0; i < raw.Count; i++)
+        for (var i = 0; i < raw.Count && result.Count < maxValues; i++)
         {
             var v = raw[i];
             if (v >= 0xE000)
@@ -48,7 +57,7 @@ public static class DpiFeature
                 if (step == 0 || result.Count == 0 || i + 1 >= raw.Count) continue;
                 var start = result[^1];
                 var end = raw[i + 1];
-                for (var dpi = start + step; dpi < end; dpi += step) result.Add(dpi);
+                for (var dpi = start + step; dpi < end && result.Count < maxValues; dpi += step) result.Add(dpi);
                 continue;
             }
             if (result.Count == 0 || result[^1] != v) result.Add(v);
@@ -87,15 +96,17 @@ public sealed class AdjustableDpiFeature : IDpiFeature
     public async Task<DpiState> GetDpiAsync(int sensor = 0, CancellationToken ct = default)
     {
         var r = await _device.CallAsync(FeatureIndex, 0x02, [(byte)sensor], ct).ConfigureAwait(false);
-        var current = (r[1] << 8) | r[2];
-        var def = (r[3] << 8) | r[4];
-        return new DpiState(r[0], current, def == 0 ? current : def);
+        int Word(int i) => r.Length > i + 1 ? (r[i] << 8) | r[i + 1] : 0; // kurze/fehlerhafte Antwort nicht crashen lassen
+        var current = Word(1);
+        var def = Word(3);
+        return new DpiState(r.Length > 0 ? r[0] : 0, current, def == 0 ? current : def);
     }
 
     public async Task<int> SetDpiAsync(int dpi, int sensor = 0, CancellationToken ct = default)
     {
+        dpi = DpiFeature.Clamp(dpi);
         var r = await _device.CallAsync(FeatureIndex, 0x03, [(byte)sensor, (byte)(dpi >> 8), (byte)dpi], ct).ConfigureAwait(false);
-        return (r[1] << 8) | r[2];
+        return r.Length >= 3 ? (r[1] << 8) | r[2] : dpi;
     }
 
     /// <summary>getSensorDpiList: [Sensor, Werte …] – Kodierung siehe <see cref="DpiFeature.ParseValues"/>.</summary>

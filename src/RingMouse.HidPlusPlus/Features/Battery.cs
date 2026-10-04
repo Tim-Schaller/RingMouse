@@ -102,16 +102,19 @@ public sealed class BatteryVoltageCurve
 /// <summary>Dekodiert die Antworten/Events der drei Akku-Features (jeweils gleiches Format für Read und Event 0).</summary>
 public static class BatteryDecoder
 {
+    /// <summary>Byte an Position <paramref name="i"/> oder 0, wenn die (ggf. als Short gesendete) Antwort kürzer ist.</summary>
+    private static byte At(ReadOnlySpan<byte> d, int i) => i < d.Length ? d[i] : (byte)0;
+
     /// <summary>0x1004 getStatus / Event 0: [SoC %, Level-Bits, Ladestatus, externe Versorgung].</summary>
     public static BatteryReading DecodeUnified(ReadOnlySpan<byte> d, bool stateOfChargeSupported = true)
     {
-        var levelBits = d[1];
+        var levelBits = At(d, 1);
         var level = (levelBits & 0x08) != 0 ? BatteryLevel.Full
             : (levelBits & 0x04) != 0 ? BatteryLevel.Good
             : (levelBits & 0x02) != 0 ? BatteryLevel.Low
             : (levelBits & 0x01) != 0 ? BatteryLevel.Critical
             : BatteryLevel.Unknown;
-        var state = d[2] switch
+        var state = At(d, 2) switch
         {
             0 => ChargeState.Discharging,
             1 => ChargeState.Charging,
@@ -120,15 +123,15 @@ public static class BatteryDecoder
             4 => ChargeState.Error,
             _ => ChargeState.Unknown,
         };
-        int? percent = stateOfChargeSupported ? Math.Clamp((int)d[0], 0, 100) : null;
-        return new BatteryReading(percent, level, state, d[3] != 0, null, BatterySource.UnifiedBattery, false);
+        int? percent = stateOfChargeSupported ? Math.Clamp((int)At(d, 0), 0, 100) : null;
+        return new BatteryReading(percent, level, state, At(d, 3) != 0, null, BatterySource.UnifiedBattery, false);
     }
 
     /// <summary>0x1001 getBatteryInfo / Event 0: [Spannung mV (BE, 2 Byte), Flags].</summary>
     public static BatteryReading DecodeVoltage(ReadOnlySpan<byte> d, BatteryVoltageCurve? curve = null)
     {
-        var millivolts = (d[0] << 8) | d[1];
-        var flags = d[2];
+        var millivolts = (At(d, 0) << 8) | At(d, 1);
+        var flags = At(d, 2);
         var external = (flags & 0x80) != 0;
         var state = !external
             ? ChargeState.Discharging
@@ -150,7 +153,7 @@ public static class BatteryDecoder
     /// <summary>0x1000 getBatteryLevelStatus / Event 0: [Entladestufe %, nächste Stufe %, Status].</summary>
     public static BatteryReading DecodeStatus(ReadOnlySpan<byte> d)
     {
-        var state = d[2] switch
+        var state = At(d, 2) switch
         {
             0 => ChargeState.Discharging,
             1 => ChargeState.Charging,
@@ -160,7 +163,7 @@ public static class BatteryDecoder
             5 or 6 or 7 => ChargeState.Error,
             _ => ChargeState.Unknown,
         };
-        int? percent = d[0] == 0 ? null : Math.Clamp((int)d[0], 0, 100);
+        int? percent = At(d, 0) == 0 ? null : Math.Clamp((int)At(d, 0), 0, 100);
         if (state == ChargeState.Full) percent ??= 100;
         var external = state is ChargeState.Charging or ChargeState.ChargingSlow or ChargeState.Full;
         return new BatteryReading(percent, BatteryReading.LevelFromPercent(percent), state, external, null, BatterySource.BatteryStatus, false);
