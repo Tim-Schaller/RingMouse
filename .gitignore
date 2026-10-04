@@ -8,3 +8,8 @@ dist/
 .vs/
 TestResults/
 *.jsonl.tmp
+
+# Release signing – the private key must never be committed
+*.key
+ringmouse-release.key
+latest.json
