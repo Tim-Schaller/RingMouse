@@ -349,6 +349,9 @@ RingMouse has no telemetry and makes no network connections. Everything stays on
 Logs and `ringmouse-probe dump` recordings contain technical device data such as the unit ID of your mouse. Check them
 before you share them in a bug report.
 
+For the security model (the configuration is executable, the uiAccess residual risk, release integrity) and how to
+report a vulnerability, see [SECURITY.md](SECURITY.md).
+
 ## Building from source
 
 ```powershell

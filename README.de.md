@@ -358,6 +358,9 @@ RingMouse hat keine Telemetrie und baut keine Netzwerkverbindungen auf. Alles bl
 Logs und Mitschnitte von `ringmouse-probe dump` enthalten technische Gerätedaten wie die Unit-ID deiner Maus. Prüfe sie,
 bevor du sie in einem Fehlerbericht teilst.
 
+Zum Sicherheitsmodell (die Konfiguration ist ausführbar, das uiAccess-Restrisiko, Release-Integrität) und wie du eine
+Schwachstelle meldest, siehe [SECURITY.md](SECURITY.md).
+
 ## Selbst bauen
 
 ```powershell
