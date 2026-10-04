@@ -57,9 +57,10 @@ MX Vertical über Bluetooth; andere Modelle sollten funktionieren – Rückmeldu
 6. [Fenster mit Adminrechten (UIPI / uiAccess)](#fenster-mit-adminrechten-uipi--uiaccess)
 7. [ringmouse-probe](#ringmouse-probe)
 8. [Troubleshooting](#troubleshooting)
-9. [Datenschutz](#datenschutz)
-10. [Selbst bauen](#selbst-bauen)
-11. [Lizenz](#lizenz)
+9. [Updates](#updates)
+10. [Datenschutz](#datenschutz)
+11. [Selbst bauen](#selbst-bauen)
+12. [Lizenz](#lizenz)
 
 ---
 
@@ -348,6 +349,33 @@ Beispiel – Befunde an einer MX Vertical über Bluetooth:
 | Autostart „Aufgabe“ bringt nichts | Die höheren Rechte wirken nur für Admin-Konten, siehe oben. Die Aufgabe startet RingMouse aber auch beim **Entsperren**, falls es nicht läuft (von älteren Versionen angelegte Aufgaben einmal in den Einstellungen neu setzen, dafür fragt die UAC einmal nach einem Admin-Konto). Der Run-Eintrag startet nur bei der Anmeldung |
 | Ring reagiert nach Standby/Bluetooth-Abbruch nicht mehr | Ein eigener Wächter-Thread erkennt eine hängende Geräteverwaltung nach 45 s, bricht den Schritt ab und startet sie notfalls neu. Im Log steht dann `Device management stuck for … s at "<Schritt>"`, alle 10 min eine Zeile zu fehlenden Logitech-Geräten und alle 30 min eine Statuszeile |
 | RingMouse reagiert nicht (Windows meldet „keine Rückmeldung“) | Der UI-Wächter schreibt `UI thread not responding for … (step: …)` ins Log – bitte diese Zeile melden |
+
+## Updates
+
+Ab v1.1.3 hält sich RingMouse selbst aktuell. Einige Minuten nach dem Start und danach alle 12 Stunden prüft es GitHub
+auf ein neues Release; gibt es eins, wird es geladen und installiert, sobald der PC eine Weile unbenutzt ist. Die
+Details legst du unter **Einstellungen → Allgemein → Updates** fest:
+
+- **Automatisch nach Updates suchen und installieren** – hier schaltest du automatische Updates ab. Auch dann meldet
+  RingMouse eine neue Version; du installierst sie mit **Jetzt aktualisieren**.
+- **Installieren ab Leerlauf (Min.)** – wie viele Minuten der PC unbenutzt sein muss, bevor ein geladenes Update
+  installiert wird, damit dich ein Update nie unterbricht.
+- **Jetzt suchen / Jetzt aktualisieren** – bei Bedarf prüfen oder installieren und den aktuellen Stand sehen.
+
+Warum das sicher ist:
+
+- Jedes Release enthält ein `latest.json`, das **mit einem privaten Schlüssel signiert ist, den nur der Herausgeber
+  hat**. RingMouse installiert ein Update nur, wenn die Signatur zum eingebauten öffentlichen Schlüssel passt *und* die
+  Version neuer ist. Die Übernahme der Download-Quelle oder des GitHub-Kontos genügt also nicht für Fremdcode, und eine
+  gleiche oder ältere Version wird nie installiert.
+- Die geladene Datei wird vor der Verwendung gegen Größe und SHA-256 aus dem Manifest geprüft.
+- Die Update-Prüfung ist die **einzige** Netzwerkverbindung von RingMouse (siehe [Datenschutz](#datenschutz) und
+  [SECURITY.md](SECURITY.md)).
+
+Die normale `RingMouse.exe` ersetzt sich selbst: Sie benennt die laufende Datei in `.old` um, legt die neue an ihren
+Platz und startet neu. Die **uiAccess-Variante wird nicht automatisch aktualisiert** – sie liegt in `C:\Program Files`
+und ist lokal signiert; dort meldet RingMouse nur, und du aktualisierst von Hand und führst `tools\install-uiaccess.ps1`
+erneut aus.
 
 ## Datenschutz
 
