@@ -26,6 +26,26 @@ jobs:
         shell: pwsh
         run: ./tools/package-release.ps1 -OutputDirectory dist
 
+      - name: Sign update manifest (latest.json)
+        shell: pwsh
+        env:
+          RINGMOUSE_RELEASE_KEY: ${{ secrets.RINGMOUSE_RELEASE_KEY }}
+        run: |
+          if (-not $env:RINGMOUSE_RELEASE_KEY) { throw "Secret RINGMOUSE_RELEASE_KEY is not set - cannot sign the update manifest." }
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $notes = "docs/release-notes/$env:GITHUB_REF_NAME.md"
+          $keyFile = Join-Path $env:RUNNER_TEMP 'release.key'
+          Set-Content -Path $keyFile -Value $env:RINGMOUSE_RELEASE_KEY -NoNewline
+          try {
+            dotnet run --project tools/RingMouse.ReleaseKey -c Release -- manifest `
+              --key $keyFile --version $version --setup dist/RingMouse.exe --file RingMouse.exe `
+              --notes-file $notes --out dist/latest.json
+            if ($LASTEXITCODE) { throw "Signing the update manifest failed" }
+          }
+          finally {
+            Remove-Item $keyFile -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Create GitHub release
         shell: pwsh
         env:
