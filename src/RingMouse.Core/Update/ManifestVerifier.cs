@@ -17,7 +17,13 @@ public static class ManifestVerifier
     /// Öffentlicher Teil des Release-Schlüssels (RSA, SubjectPublicKeyInfo, Base64). Der private Teil liegt allein
     /// beim Herausgeber; im Programm steckt nur dieser öffentliche Teil. Erzeugt mit dem Schlüssel-Tool.
     /// </summary>
-    public const string PublicKey = ""; // wird beim Einrichten des Release-Schlüssels gesetzt (Meilenstein 4)
+    public const string PublicKey =
+        "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA1+jy4MGAeoHd+1DEw7Lg6kaZkPa+eHAXCcxdwGUXCItVRHsKM0qXbFNfWSv7CZOQRXf" +
+        "XMsAYX/54sLVmXh5CIyXuL6SpX0pXNFs/GIYIiEK9ZyK65EimNW8gNPkJ34v+gR8MSJrKX/bKgLA3JYTsK7+JY/HRkaXxaSjQAKesYtrh2Cvvj6" +
+        "4++sMPuK7TBB9EAAHX3Wd6/OvRJeQ8Sv20pKIw8bx04rfv6Lit60Pp4kVj9XRUzOX2zBQsGBD0n/O/i1PpqEqcptxBtgI/RCajl1HqBg9Q6tEEd" +
+        "3TOOb1Mqf5ax3FTt98JJBgatp3zBjVyFFo/QNSfD3WqPiC59Ggd/EwqL29UEUSfQZDddQI6Gjsk7aNSEaVs/Ha2p9dZC3skgPz+MPsBWGKeuIaG" +
+        "7m8GuqLsHQRYKEU+plqmphWdMsyzfruT/Rd3PVYkjc5u9mqbxAKipvbk9Oy8eWFRpRtUiutJak8Y2aCw8PkSINQ0yY99gXNDuu/I01JJ/KSGBuW" +
+        "xAgMBAAE=";
 
     /// <summary>Eine Signatur gilt nur für diesen Zweck. Unveränderlich – sonst lehnen installierte Versionen jedes Update ab.</summary>
     private static readonly byte[] SignatureContext = "RingMouse-update-v1\n"u8.ToArray();

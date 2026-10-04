@@ -122,4 +122,14 @@ public class UpdateManifestTests
         var huge = new byte[ManifestVerifier.MaxManifestBytes + 1];
         Assert.Throws<UpdateException>(() => ManifestVerifier.Verify(huge, "irrelevant"));
     }
+
+    [Fact]
+    public void EmbeddedPublicKey_IsAValidRsa3072Key()
+    {
+        // Fängt einen beschädigten/falsch kopierten eingebauten Release-Schlüssel ab.
+        Assert.False(string.IsNullOrEmpty(ManifestVerifier.PublicKey));
+        using var rsa = RSA.Create();
+        rsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(ManifestVerifier.PublicKey), out _);
+        Assert.Equal(3072, rsa.KeySize);
+    }
 }
