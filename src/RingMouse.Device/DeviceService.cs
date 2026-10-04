@@ -168,27 +168,37 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
         var check = TimeSpan.FromMilliseconds(Math.Clamp(stallMs / 4, 50, 10_000));
         while (!stop.WaitOne(check))
         {
-            var idle = Environment.TickCount64 - Volatile.Read(ref _loopBeat);
-            if (idle < stallMs) continue;
-
-            var step = _loopStep;
-            _logger.LogError("Device management stuck for {Seconds} s at \"{Step}\" – cancelling the iteration", idle / 1000, step);
+            // Dies ist das Sicherheitsnetz: eine ungefangene Ausnahme auf diesem eigenen Thread (z.B. eine werfende
+            // Log-Senke beim Herunterfahren) würde den gesamten Prozess beenden. Darum jeden Durchlauf hart kapseln.
             try
             {
-                Volatile.Read(ref _iteration)?.Cancel();
+                var idle = Environment.TickCount64 - Volatile.Read(ref _loopBeat);
+                if (idle < stallMs) continue;
+
+                var step = _loopStep;
+                _logger.LogError("Device management stuck for {Seconds} s at \"{Step}\" – cancelling the iteration", idle / 1000, step);
+                try
+                {
+                    Volatile.Read(ref _iteration)?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Durchlauf gerade fertig geworden
+                }
+
+                if (stop.WaitOne(check)) return;
+                if (Environment.TickCount64 - Volatile.Read(ref _loopBeat) < stallMs) continue; // hat sich gefangen
+
+                var generation = Interlocked.Increment(ref _loopGeneration);
+                Beat("Restarting the loop");
+                _loop = Task.Run(() => LoopAsync(generation, _cts.Token));
+                _logger.LogWarning("Device management: loop restarted (was stuck at \"{Step}\")", step);
             }
-            catch (ObjectDisposedException)
+            catch (Exception ex)
             {
-                // Durchlauf gerade fertig geworden
+                try { _logger.LogError(ex, "Device watchdog iteration failed"); }
+                catch { /* selbst der Logger ist defekt – weiterlaufen statt den Prozess zu beenden */ }
             }
-
-            if (stop.WaitOne(check)) return;
-            if (Environment.TickCount64 - Volatile.Read(ref _loopBeat) < stallMs) continue; // hat sich gefangen
-
-            var generation = Interlocked.Increment(ref _loopGeneration);
-            Beat("Restarting the loop");
-            _loop = Task.Run(() => LoopAsync(generation, _cts.Token));
-            _logger.LogWarning("Device management: loop restarted (was stuck at \"{Step}\")", step);
         }
     }
 
@@ -626,23 +636,31 @@ public sealed class DeviceService : IDeviceHost, IAsyncDisposable
 
     private void OnReceiverMessage(EndpointSession session, HidppMessage message)
     {
-        if (!HidppReceiver.TryParseConnectionEvent(message, out var connection)) return;
-        _logger.LogInformation("{Receiver}: {Connection}", session.Endpoint.DisplayName, connection);
-        if (connection.Connected && connection.LinkEstablished)
+        // Läuft auf dem HID-Lesethread; wie die übrigen Report-Handler nie in den Aufrufer zurückwerfen.
+        try
         {
-            var device = AddDevice(session, connection.DeviceIndex,
-                ConnectionText(session.Endpoint, connection.DeviceIndex), connection.WirelessPid != 0 ? connection.WirelessPid : session.Endpoint.ProductId);
-            device.RequestConfigure(TimeSpan.FromMilliseconds(300), "Receiver: connected");
+            if (!HidppReceiver.TryParseConnectionEvent(message, out var connection)) return;
+            _logger.LogInformation("{Receiver}: {Connection}", session.Endpoint.DisplayName, connection);
+            if (connection.Connected && connection.LinkEstablished)
+            {
+                var device = AddDevice(session, connection.DeviceIndex,
+                    ConnectionText(session.Endpoint, connection.DeviceIndex), connection.WirelessPid != 0 ? connection.WirelessPid : session.Endpoint.ProductId);
+                device.RequestConfigure(TimeSpan.FromMilliseconds(300), "Receiver: connected");
+            }
+            else if (connection.Connected && session.Devices.TryGetValue(connection.DeviceIndex, out var sleeping))
+            {
+                sleeping.MarkUnreachable("wireless link to receiver lost");
+            }
+            else if (!connection.Connected && session.Devices.TryRemove(connection.DeviceIndex, out var removed))
+            {
+                var snapshot = removed.Snapshot();
+                removed.Dispose();
+                RaiseRemoved(snapshot);
+            }
         }
-        else if (connection.Connected && session.Devices.TryGetValue(connection.DeviceIndex, out var sleeping))
+        catch (Exception ex)
         {
-            sleeping.MarkUnreachable("wireless link to receiver lost");
-        }
-        else if (!connection.Connected && session.Devices.TryRemove(connection.DeviceIndex, out var removed))
-        {
-            var snapshot = removed.Snapshot();
-            removed.Dispose();
-            RaiseRemoved(snapshot);
+            _logger.LogWarning(ex, "Receiver message handler failed");
         }
     }
 

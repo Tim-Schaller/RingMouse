@@ -31,6 +31,7 @@ internal sealed class RingController
     private readonly RingWindow _window;
     private readonly HashSet<string> _uipiLogged = new(StringComparer.OrdinalIgnoreCase);
     private readonly bool[] _swallowUp = new bool[5];
+    private readonly object _swallowLock = new(); // _swallowUp wird vom Hook-Thread und vom UI-Thread berührt
 
     private RingMouseConfig _config;
     private RingTheme _theme;
@@ -232,28 +233,52 @@ internal sealed class RingController
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (!_interaction.IsOpen) return;
-        var now = NowMs;
-        if (!_latencyLogged)
+        // Läuft 60×/s. Ein ungefangener Fehler bliebe abonniert (Dauer-Sturm) und der Mauszeiger könnte dauerhaft
+        // ausgeblendet bleiben. Darum hart abfangen und den Ring schließen (stellt Zeiger und Hooks wieder her).
+        try
         {
-            _latencyLogged = true;
-            if (_config.Debug.LogRingLatency && _openTimestamp != 0)
-                _log.LogInformation("Ring visible {Ms:0.0} ms after button press", Stopwatch.GetElapsedTime(_openTimestamp).TotalMilliseconds);
+            if (!_interaction.IsOpen) return;
+            var now = NowMs;
+            if (!_latencyLogged)
+            {
+                _latencyLogged = true;
+                if (_config.Debug.LogRingLatency && _openTimestamp != 0)
+                    _log.LogInformation("Ring visible {Ms:0.0} ms after button press", Stopwatch.GetElapsedTime(_openTimestamp).TotalMilliseconds);
+            }
+            UpdatePointer(now);
+            Apply(_interaction.Tick(now));
+            if (!_interaction.IsOpen || _window.Visual is not { } visual) return;
+
+            // Rückmeldung pro Frame: Zeigerpunkt (wenn der echte Zeiger beim Halten steht) und Durchschiebe-Fortschritt
+            var (ox, oy) = CurrentOffset();
+            visual.UpdatePointer(ox, oy, _rawActive && _interaction.Phase == RingPhase.Holding);
+            visual.SetPushProgress(_interaction.PushProgress(ox, oy));
+
+            // Echten Mauszeiger ausblenden, solange der Punkt die Richtung zeigt – bleibt über Untermenü-Wechsel hinweg aus,
+            // kommt zurück beim Tippen-Modus, beim Schließen und nach 5 s Halten ohne Bewegung.
+            var hide = _config.Ring.HideCursor && _interaction.Phase == RingPhase.Holding &&
+                       (_rawActive || CursorHider.IsHidden) && now - _lastRawMs < 5000;
+            SetCursorHidden(hide);
         }
-        UpdatePointer(now);
-        Apply(_interaction.Tick(now));
-        if (!_interaction.IsOpen || _window.Visual is not { } visual) return;
-
-        // Rückmeldung pro Frame: Zeigerpunkt (wenn der echte Zeiger beim Halten steht) und Durchschiebe-Fortschritt
-        var (ox, oy) = CurrentOffset();
-        visual.UpdatePointer(ox, oy, _rawActive && _interaction.Phase == RingPhase.Holding);
-        visual.SetPushProgress(_interaction.PushProgress(ox, oy));
-
-        // Echten Mauszeiger ausblenden, solange der Punkt die Richtung zeigt – bleibt über Untermenü-Wechsel hinweg aus,
-        // kommt zurück beim Tippen-Modus, beim Schließen und nach 5 s Halten ohne Bewegung.
-        var hide = _config.Ring.HideCursor && _interaction.Phase == RingPhase.Holding &&
-                   (_rawActive || CursorHider.IsHidden) && now - _lastRawMs < 5000;
-        SetCursorHidden(hide);
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error in the ring render loop – closing the ring");
+            try
+            {
+                CloseRing(restoreCursor: true);
+            }
+            catch (Exception closeEx)
+            {
+                // Notfall: Render-Hook lösen (kein Dauer-Sturm) und Zeiger garantiert zeigen.
+                _log.LogError(closeEx, "Closing the ring after a render error also failed");
+                if (_renderingHooked)
+                {
+                    CompositionTarget.Rendering -= OnRendering;
+                    _renderingHooked = false;
+                }
+                CursorHider.Show();
+            }
+        }
     }
 
     private void SetCursorHidden(bool hidden)
@@ -371,7 +396,9 @@ internal sealed class RingController
         }
         _window.HideRing(animate && _config.Ring.Animation);
 
-        if (_swallowUp.Any(b => b))
+        bool anySwallow;
+        lock (_swallowLock) anySwallow = AnySwallowPending();
+        if (anySwallow)
         {
             // Die zugehörigen Maus-Ups noch verschlucken, dann Hooks lösen (spätestens nach 1,5 s)
             _hooks.SetRingHandlers(OnHookMouse, null);
@@ -392,8 +419,16 @@ internal sealed class RingController
     {
         _hookReleaseTimer?.Stop();
         if (_active) return;
-        Array.Clear(_swallowUp);
+        lock (_swallowLock) Array.Clear(_swallowUp);
         _hooks.SetRingHandlers(null, null);
+    }
+
+    /// <summary>true, wenn noch ein Maus-Up verschluckt werden muss. Nur unter <see cref="_swallowLock"/> aufrufen.</summary>
+    private bool AnySwallowPending()
+    {
+        foreach (var pending in _swallowUp)
+            if (pending) return true;
+        return false;
     }
 
     // ------------------------------------------------------------------ Hook-Callbacks (Hook-Thread!)
@@ -414,16 +449,24 @@ internal sealed class RingController
         if (e.IsButtonDown)
         {
             if (!_active) return false;
-            _swallowUp[index] = true;
+            lock (_swallowLock) _swallowUp[index] = true;
             var (x, y, primary) = (e.X, e.Y, e.Message == MouseMessage.LeftDown);
             _dispatcher.BeginInvoke(DispatcherPriority.Send, () => OnClick(x, y, primary));
             return true;
         }
 
-        if (e.IsButtonUp && _swallowUp[index])
+        if (e.IsButtonUp)
         {
-            _swallowUp[index] = false;
-            if (!_active && !_swallowUp.Any(b => b)) _dispatcher.BeginInvoke(ReleaseHooks);
+            // Prüfen und Zurücksetzen müssen zusammen atomar sein (UI-Thread kann _swallowUp parallel leeren).
+            bool swallowed, anyLeft;
+            lock (_swallowLock)
+            {
+                swallowed = _swallowUp[index];
+                if (swallowed) _swallowUp[index] = false;
+                anyLeft = AnySwallowPending();
+            }
+            if (!swallowed) return false;
+            if (!_active && !anyLeft) _dispatcher.BeginInvoke(ReleaseHooks);
             return true;
         }
         return false;

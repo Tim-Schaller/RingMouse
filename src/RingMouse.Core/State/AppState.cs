@@ -57,6 +57,12 @@ public sealed class StateStore
         }
     }
 
+    /// <summary>Ändert den Zustand unter demselben Lock wie <see cref="Save"/>, damit kein Schreiben mit der Serialisierung kollidiert.</summary>
+    public void Mutate(Action<AppState> change)
+    {
+        lock (_lock) change(State);
+    }
+
     public void Save()
     {
         lock (_lock)

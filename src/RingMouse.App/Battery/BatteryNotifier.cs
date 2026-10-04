@@ -29,29 +29,35 @@ internal sealed class BatteryNotifier(TrayController tray, StateStore store, ILo
     {
         if (device.Battery is not { } battery) return;
 
-        if (!store.State.Batteries.TryGetValue(device.Key, out var saved))
-        {
-            saved = new DeviceBatteryState();
-            store.State.Batteries[device.Key] = saved;
-        }
         var percent = battery.EffectivePercent;
-        saved.DeviceName = device.Name;
-        if (percent is not null)
+        BatteryAlert? alert = null;
+        // Zustand unter dem StateStore-Lock ändern – sonst kann store.Save() das Batteries-Dictionary
+        // während der Serialisierung verändert sehen ("Collection was modified").
+        store.Mutate(state =>
         {
-            // Ohne Wert (z.B. MX Vertical beim Laden) den letzten bekannten Stand behalten
-            saved.Percent = percent;
-            saved.Timestamp = device.BatteryTimestamp ?? DateTimeOffset.Now;
-        }
-        saved.State = TrayController.ChargeText(battery.State);
-        saved.Connection = device.Connection;
+            if (!state.Batteries.TryGetValue(device.Key, out var saved))
+            {
+                saved = new DeviceBatteryState();
+                state.Batteries[device.Key] = saved;
+            }
+            saved.DeviceName = device.Name;
+            if (percent is not null)
+            {
+                // Ohne Wert (z.B. MX Vertical beim Laden) den letzten bekannten Stand behalten
+                saved.Percent = percent;
+                saved.Timestamp = device.BatteryTimestamp ?? DateTimeOffset.Now;
+            }
+            saved.State = TrayController.ChargeText(battery.State);
+            saved.Connection = device.Connection;
 
-        if (!_trackers.TryGetValue(device.Key, out var tracker))
-        {
-            tracker = new BatteryAlertTracker(_config.Battery.Thresholds, saved.Alerts);
-            _trackers[device.Key] = tracker;
-        }
+            if (!_trackers.TryGetValue(device.Key, out var tracker))
+            {
+                tracker = new BatteryAlertTracker(_config.Battery.Thresholds, saved.Alerts);
+                _trackers[device.Key] = tracker;
+            }
+            alert = tracker.Update(percent, battery.IsCharging || (battery.ExternalPower && !battery.IsFull), battery.IsFull);
+        });
 
-        var alert = tracker.Update(percent, battery.IsCharging || (battery.ExternalPower && !battery.IsFull), battery.IsFull);
         var name = TrayController.ShortName(device.Name);
         switch (alert)
         {
