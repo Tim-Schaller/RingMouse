@@ -66,6 +66,9 @@ internal sealed class RingMouseApplication : Application
     /// <summary>Beendet, weil ein Neustart gewünscht ist (z.B. Sprachwechsel) – siehe Program.Main.</summary>
     public bool RestartRequested => _host?.RestartRequested == true;
 
+    /// <summary>Argumente der neu gestarteten Instanz (z.B. leer nach einem Update, sonst "--settings").</summary>
+    public string RestartArguments => _host?.RestartArguments ?? "--settings";
+
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
     {
         base.OnSessionEnding(e);

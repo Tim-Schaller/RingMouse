@@ -86,6 +86,9 @@ public static class ConfigValidator
         if (c.Battery.PollMinutes is < 1 or > 1440) Error("battery.pollMinutes", L("must be between 1 and 1440", "muss zwischen 1 und 1440 liegen"));
         if (c.Battery.VoltageCurve is { Count: < 2 }) Error("battery.voltageCurve", L("needs at least two points", "braucht mindestens zwei Stützstellen"));
 
+        // Updates
+        if (c.General.UpdateIdleMinutes is < 1 or > 240) Error("general.updateIdleMinutes", L("must be between 1 and 240", "muss zwischen 1 und 240 liegen"));
+
         if (!c.Buttons.Values.Any(a => a is OpenRingAction) && !c.Profiles.Any(p => p.Buttons.Values.Any(a => a is OpenRingAction)))
             Warn("buttons", L("no button opens a ring (Settings → Buttons → “Press button …”)", "keine Taste öffnet einen Ring (Einstellungen → Tasten → „Taste drücken …“)"));
 

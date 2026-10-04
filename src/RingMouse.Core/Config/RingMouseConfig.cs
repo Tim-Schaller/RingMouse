@@ -65,6 +65,12 @@ public sealed class GeneralSettings
 
     [Description("Serilog level: Verbose | Debug | Information | Warning | Error")]
     public string LogLevel { get; set; } = "Information";
+
+    [Description("Check GitHub for updates and install them automatically (the only network connection RingMouse makes).")]
+    public bool AutoUpdate { get; set; } = true;
+
+    [Description("Install a downloaded update once the PC has been idle for this many minutes (1–240).")]
+    public int UpdateIdleMinutes { get; set; } = 5;
 }
 
 public enum RingMode

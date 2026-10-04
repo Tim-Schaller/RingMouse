@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ using RingMouse.Core.Import;
 using RingMouse.Core.Localization;
 using RingMouse.Core.Profiles;
 using RingMouse.Core.State;
+using RingMouse.Core.Update;
 using RingMouse.Device;
 using RingMouse.HidPlusPlus.Features;
 using RingMouse.HidPlusPlus.Transport.Windows;
@@ -23,6 +25,7 @@ using RingMouse.Platform;
 using RingMouse.Platform.Autostart;
 using RingMouse.Platform.Display;
 using RingMouse.Platform.Input;
+using RingMouse.Platform.Update;
 using RingMouse.Platform.Windows;
 using static RingMouse.Core.Localization.Lang;
 
@@ -58,6 +61,9 @@ internal interface ISettingsHost
     /// Liefert den Pfad der Sicherung; wirft eine InvalidDataException, wenn das Ergebnis ungültig wäre.
     /// </summary>
     string? ApplyImport(RingMouseConfig source, ImportParts parts);
+
+    /// <summary>Hintergrund-Updater für Status und manuelle Aktionen; null, wenn Updates aus sind (Dev-Build / kein Schlüssel).</summary>
+    Updater? Updater { get; }
 }
 
 /// <summary>Composition Root: verdrahtet Config, Geräte, Ring, Aktionen, Tray und Systemereignisse.</summary>
@@ -78,6 +84,7 @@ internal sealed class AppHost : ISettingsHost
     private InputRouter _router = null!;
     private TrayController _tray = null!;
     private BatteryNotifier _battery = null!;
+    private Updater? _updater;
     private DispatcherTimer? _optionsPlusTimer;
     private EventWaitHandle? _activateEvent;
     private RegisteredWaitHandle? _activateWait;
@@ -237,6 +244,9 @@ internal sealed class AppHost : ISettingsHost
                 L("You'll find settings and the battery level in the tray icon.", "Einstellungen und Akkustand findest du im Tray-Symbol."),
                 TrayNotice.Info);
         }
+        Step("Updates");
+        StartUpdater((typeof(AppHost).Assembly.GetName().Version ?? new Version(0, 0, 0)).ToString(3));
+
         if (HasArg("--settings")) ShowSettings();
         if (HasArg("--selftest")) _ = RunSelfTestAsync();
         Step("running");
@@ -529,11 +539,81 @@ internal sealed class AppHost : ISettingsHost
     /// <summary>Nach dem Beenden startet Program.Main eine neue Instanz.</summary>
     public bool RestartRequested { get; private set; }
 
+    /// <summary>Argumente der neu gestarteten Instanz (Program.Main). "--settings" öffnet danach die Einstellungen.</summary>
+    public string RestartArguments { get; private set; } = "--settings";
+
     public void Restart()
     {
         _log.LogInformation("Restart requested");
         RestartRequested = true;
         Exit();
+    }
+
+    /// <summary>Nach dem Ersetzen der Exe neu starten – ohne "--settings"; der nächste Start meldet das Ergebnis.</summary>
+    public void RestartForUpdate()
+    {
+        _log.LogInformation("Restarting to apply the update");
+        RestartArguments = "";
+        RestartRequested = true;
+        Exit();
+    }
+
+    /// <summary>
+    /// Richtet die automatischen Updates ein: meldet das Ergebnis eines vorherigen Versuchs und startet – nur in
+    /// echten Release-Installationen und wenn ein Release-Schlüssel eingebaut ist – den Hintergrund-Updater.
+    /// </summary>
+    private void StartUpdater(string version)
+    {
+        var store = new UpdateStore(Path.Combine(AppPaths.Root, "updates"));
+        var pending = store.ConsumePending(version);
+        if (Environment.ProcessPath is { } exe) SelfReplace.CleanupOld(exe);
+        if (pending is { Status: "ok" } ok)
+        {
+            _log.LogInformation("Updated to {Version}", version);
+            _tray.Notify(L("RingMouse updated", "RingMouse aktualisiert"),
+                L($"Now running version {version}.", $"Läuft jetzt in Version {version}."), TrayNotice.Info);
+            if (ok.Show) ShowSettings();
+        }
+        else if (pending is { Status: "failed" } failed)
+        {
+            _log.LogWarning("Update to {Version} did not take effect", failed.Version);
+            _tray.Notify(L("Update not completed", "Update nicht abgeschlossen"),
+                L($"The update to {failed.Version} did not take effect – it will be retried later.",
+                    $"Das Update auf {failed.Version} wurde nicht wirksam – es wird später erneut versucht."), TrayNotice.Warning);
+        }
+
+        var isRelease = typeof(AppHost).Assembly.GetCustomAttribute<System.Reflection.AssemblyConfigurationAttribute>()?.Configuration is not "Debug";
+        if (!isRelease || string.IsNullOrEmpty(ManifestVerifier.PublicKey))
+        {
+            _log.LogInformation("Automatic updates are off (release build: {Release}, key configured: {Key})",
+                isRelease, !string.IsNullOrEmpty(ManifestVerifier.PublicKey));
+            return;
+        }
+
+        _updater = new Updater(new UpdateHttp($"RingMouse/{version}"), new AppUpdateInstaller(this), store, version,
+            autoUpdate: () => _configStore.Current.General.AutoUpdate,
+            idleMinutes: () => _configStore.Current.General.UpdateIdleMinutes,
+            notify: msg => Dispatcher.BeginInvoke(() => _tray.Notify("Update", msg, TrayNotice.Info)),
+            idleSeconds: SystemIdle.Seconds,
+            windowVisible: () => _settings is not null,
+            logger: _logging.Create("Update"));
+        _updater.Start();
+    }
+
+    /// <summary>Für die Einstellungen: aktueller Update-Zustand und manuelle Aktionen; null, wenn Updates aus sind.</summary>
+    public Updater? Updater => _updater;
+
+    /// <summary>Installiert ein Update, indem es die Exe ersetzt und RingMouse neu startet. Nur beschreibbare Nicht-uiAccess-Installationen.</summary>
+    private sealed class AppUpdateInstaller(AppHost host) : IUpdateInstaller
+    {
+        public bool CanInstall => !ProcessRights.HasUiAccess && SelfReplace.CanReplace(Environment.ProcessPath);
+
+        public void Install(string setupPath, UpdateManifest manifest)
+        {
+            var installPath = Environment.ProcessPath ?? throw new InvalidOperationException("Process path unknown");
+            SelfReplace.Replace(installPath, setupPath);
+            host.Dispatcher.BeginInvoke(host.RestartForUpdate);
+        }
     }
 
     public string? ApplyImport(RingMouseConfig source, ImportParts parts)
@@ -610,6 +690,7 @@ internal sealed class AppHost : ISettingsHost
         _uiWatchdogStop.Set();
         CursorHider.Show();
         _optionsPlusTimer?.Stop();
+        _updater?.Stop();
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;

@@ -39,7 +39,7 @@ public static class Program
         var app = new RingMouseApplication(args);
         var code = app.Run();
         if (app.EndedBySessionEnding) RestartIfSessionContinues(mutex);
-        else if (app.RestartRequested) StartNewInstance(mutex, "--settings");
+        else if (app.RestartRequested) StartNewInstance(mutex, app.RestartArguments);
         GC.KeepAlive(mutex);
         return code;
     }

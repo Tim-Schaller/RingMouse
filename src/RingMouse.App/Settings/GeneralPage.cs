@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using RingMouse.Core;
 using RingMouse.Core.Config;
+using RingMouse.Core.Update;
 using RingMouse.Platform;
 using RingMouse.Platform.Import;
 using RingMouse.Platform.Windows;
@@ -17,6 +19,10 @@ internal sealed class GeneralPage : UserControl
 {
     private readonly SettingsContext _ctx;
     private readonly TextBlock _autostartStatus = Form.Hint("");
+    private TextBlock? _updateStatus;
+    private Button? _installButton;
+    private Action? _installAction;
+    private DispatcherTimer? _updateTimer;
 
     public GeneralPage(SettingsContext ctx, GeneralPageCommands commands)
     {
@@ -72,6 +78,9 @@ internal sealed class GeneralPage : UserControl
                  ("Warning", L("Warnings only", "Nur Warnungen")), ("Error", L("Errors only", "Nur Fehler"))],
                 g.LogLevel, v => { g.LogLevel = v; ctx.MarkDirty(); }))));
 
+        // Updates
+        stack.Children.Add(BuildUpdateGroup());
+
         // Dateien
         stack.Children.Add(Form.Group(L("Files", "Dateien"),
             Form.Hint(L($"Config: {AppPaths.ConfigFile}\nLogs: {AppPaths.LogDirectory}\nThe JSON file is the source of truth and is reloaded immediately when it changes. " +
@@ -123,6 +132,90 @@ internal sealed class GeneralPage : UserControl
                 new TextBlock { Text = L("none – RingMouse opens no network connections", "keine – RingMouse öffnet keine Netzwerkverbindungen") })));
 
         Content = Form.Scroll(stack);
+    }
+
+    private UIElement BuildUpdateGroup()
+    {
+        var g = _ctx.Config.General;
+        var children = new List<UIElement>
+        {
+            Form.Check(L("Check for updates and install them automatically", "Automatisch nach Updates suchen und installieren"),
+                g.AutoUpdate, v => { g.AutoUpdate = v; _ctx.MarkDirty(); }),
+            Form.Row(L("Install after idle (min)", "Installieren ab Leerlauf (Min.)"),
+                Form.Number(g.UpdateIdleMinutes, v => { g.UpdateIdleMinutes = (int)v; _ctx.MarkDirty(); }, 1, 240),
+                L("How long the PC must be unused before a downloaded update is installed.",
+                    "Wie lange der PC unbenutzt sein muss, bevor ein geladenes Update installiert wird.")),
+            Form.Hint(L("RingMouse checks GitHub for signed releases – the only network connection it makes.",
+                "RingMouse prüft GitHub auf signierte Releases – die einzige Netzwerkverbindung, die es aufbaut.")),
+        };
+
+        if (_ctx.Host.Updater is not null)
+        {
+            _updateStatus = Form.Hint("");
+            _installButton = Form.Button(L("Check now", "Jetzt suchen"), () => _installAction?.Invoke());
+            children.Add(Form.Buttons(_installButton));
+            children.Add(_updateStatus);
+            _updateTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => RefreshUpdateStatus(), Dispatcher);
+            Loaded += (_, _) => { RefreshUpdateStatus(); _updateTimer.Start(); };
+            Unloaded += (_, _) => _updateTimer.Stop();
+        }
+        else
+        {
+            children.Add(Form.Hint(L("This installation does not update itself (developer build, or installed to a protected folder / uiAccess).",
+                "Diese Installation aktualisiert sich nicht selbst (Entwicklerbuild oder in einem geschützten Ordner / uiAccess installiert).")));
+        }
+        return Form.Group("Updates", [.. children]);
+    }
+
+    private void RefreshUpdateStatus()
+    {
+        if (_ctx.Host.Updater is not { } updater || _updateStatus is null || _installButton is null) return;
+        var s = updater.Snapshot();
+        _updateStatus.Text = StatusText(s);
+
+        var hasUpdate = UpdateManifest.IsValidVersion(s.Version) && s.Status is "available" or "downloading" or "ready";
+        if (hasUpdate && s.CanInstall)
+        {
+            _installButton.Content = L("Update now", "Jetzt aktualisieren");
+            _installButton.IsEnabled = s.Status != "downloading";
+            _installAction = () =>
+            {
+                updater.InstallNow();
+                if (_updateStatus is not null) _updateStatus.Text = L("Installing the update…", "Installiere das Update…");
+            };
+        }
+        else if (hasUpdate && s.ReleaseUrl is { } url)
+        {
+            _installButton.Content = L("View on GitHub", "Auf GitHub ansehen");
+            _installButton.IsEnabled = true;
+            _installAction = () => OpenUrl(url);
+        }
+        else
+        {
+            _installButton.Content = L("Check now", "Jetzt suchen");
+            _installButton.IsEnabled = s.Status != "checking";
+            _installAction = () => updater.CheckNow();
+        }
+    }
+
+    private string StatusText(UpdateSnapshot s) => s.Status switch
+    {
+        "checking" => L("Checking for updates…", "Suche nach Updates…"),
+        "current" => L($"RingMouse is up to date (version {s.Current}).", $"RingMouse ist aktuell (Version {s.Current})."),
+        "available" => s.CanInstall
+            ? L($"Version {s.Version} is available.", $"Version {s.Version} ist verfügbar.")
+            : L($"Version {s.Version} is available – please update manually.", $"Version {s.Version} ist verfügbar – bitte manuell aktualisieren."),
+        "downloading" => L($"Downloading {s.Version}… {s.Progress:P0}", $"Lade {s.Version}… {s.Progress:P0}"),
+        "ready" => L($"Version {s.Version} is ready to install.", $"Version {s.Version} ist bereit zur Installation."),
+        "installing" => L("Installing the update…", "Installiere das Update…"),
+        "error" => L($"Update check failed: {s.Error}", $"Update-Prüfung fehlgeschlagen: {s.Error}"),
+        _ => L($"Current version: {s.Current}", $"Aktuelle Version: {s.Current}"),
+    };
+
+    private static void OpenUrl(string url)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true })?.Dispose(); }
+        catch { /* kein Browser verfügbar */ }
     }
 
     private void SetAutostart(AutostartMode mode)

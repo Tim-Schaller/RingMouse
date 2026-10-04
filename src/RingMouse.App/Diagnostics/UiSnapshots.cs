@@ -318,6 +318,8 @@ internal static class UiSnapshots
     {
         public RingMouseConfig CurrentConfig { get; } = config;
 
+        public RingMouse.Core.Update.Updater? Updater => null; // Diagnose-Ansicht ohne Updates
+
         public IReadOnlyList<DeviceSnapshot> Devices { get; } =
         [
             new DeviceSnapshot
