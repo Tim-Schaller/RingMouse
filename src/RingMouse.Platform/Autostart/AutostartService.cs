@@ -1,17 +1,22 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Principal;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
+using RingMouse.Core.Autostart;
 using RingMouse.Core.Config;
 using static RingMouse.Core.Localization.Lang;
 
 namespace RingMouse.Platform.Autostart;
 
 public sealed record AutostartResult(bool Success, string Message);
+
+/// <summary>Eingerichteter Autostart (Run-Eintrag hat Vorrang, wie beim Start durch Windows) und wohin er zeigt.</summary>
+public sealed record AutostartRegistration(AutostartMode Mode, string? Exe, AutostartTargetState State);
 
 /// <summary>
 /// Autostart per HKCU\...\Run (normale Rechte) oder als Aufgabe "Mit höchsten Privilegien" bei Anmeldung und
@@ -24,10 +29,34 @@ public sealed class AutostartService(ILogger? logger = null)
     public const string ValueName = "RingMouse";
     public const string TaskName = "RingMouse";
 
-    public bool RunEntryExists()
+    public bool RunEntryExists() => RunEntryCommand() is not null;
+
+    /// <summary>Befehlszeile des Run-Eintrags; null = keiner.</summary>
+    public string? RunEntryCommand()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-        return key?.GetValue(ValueName) is string;
+        return key?.GetValue(ValueName) as string;
+    }
+
+    /// <summary>
+    /// Was eingerichtet ist und ob es <paramref name="exePath"/> startet – z.B. zeigt ein Autostart nach dem Verschieben
+    /// der Exe ins Leere (<see cref="AutostartTargetState.Missing"/>).
+    /// </summary>
+    public AutostartRegistration Inspect(string exePath)
+    {
+        if (RunEntryCommand() is { } command)
+        {
+            var exe = AutostartTarget.ExeFromCommandLine(Environment.ExpandEnvironmentVariables(command));
+            return new(AutostartMode.Run, exe, AutostartTarget.Classify(exe, exePath, File.Exists));
+        }
+        if (ReadTaskAction() is { } action)
+        {
+            var exe = action.Command is null ? null : Environment.ExpandEnvironmentVariables(action.Command.Trim().Trim('"'));
+            return new(AutostartMode.Task, exe, AutostartTarget.Classify(exe, exePath, File.Exists));
+        }
+        return TaskExists() == false
+            ? new(AutostartMode.Off, null, AutostartTargetState.Current)
+            : new(AutostartMode.Task, null, AutostartTargetState.Unknown);
     }
 
     /// <summary>true/false = sicher, null = unbekannt (z.B. keine Leserechte auf die Aufgabe).</summary>
@@ -35,30 +64,42 @@ public sealed class AutostartService(ILogger? logger = null)
     {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo("schtasks.exe", $"/Query /TN \"{TaskName}\"")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            });
-            if (p is null) return null;
-            p.WaitForExit(5000);
-            if (p.ExitCode == 0) return true;
-            var err = p.StandardError.ReadToEnd();
-            return err.Contains("Zugriff", StringComparison.OrdinalIgnoreCase) || err.Contains("access", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : false;
+            return ReadTaskXml() is not null;
         }
         catch (Exception ex)
         {
-            logger?.LogDebug(ex, "schtasks /Query failed");
+            logger?.LogDebug(ex, "Could not query the scheduled task");
             return null;
         }
     }
 
-    public AutostartMode DetectCurrent() =>
-        RunEntryExists() ? AutostartMode.Run : TaskExists() == true ? AutostartMode.Task : AutostartMode.Off;
+    /// <summary>
+    /// XML der registrierten Aufgabe über die COM-API der Aufgabenplanung (Schedule.Service) – exakt in Unicode. Die
+    /// Textausgabe von "schtasks /Query /XML" kommt umgeleitet in der OEM-Codepage (trotz encoding="UTF-16") und
+    /// verliert Zeichen außerhalb davon, z.B. in Benutzernamen. null = keine Aufgabe; wirft z.B. ohne Leserechte.
+    /// </summary>
+    private static string? ReadTaskXml()
+    {
+        const int FileNotFound = unchecked((int)0x80070002);
+        var type = Type.GetTypeFromProgID("Schedule.Service", throwOnError: true)!;
+        dynamic service = Activator.CreateInstance(type)!;
+        try
+        {
+            service.Connect();
+            try
+            {
+                return (string)service.GetFolder("\\").GetTask(TaskName).Xml;
+            }
+            catch (Exception ex) when (ex.HResult == FileNotFound)
+            {
+                return null;
+            }
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(service);
+        }
+    }
 
     public AutostartResult Apply(AutostartMode mode, string exePath)
     {
@@ -127,46 +168,23 @@ public sealed class AutostartService(ILogger? logger = null)
     }
 
     /// <summary>Liest die registrierte Aufgabe zurück; true nur, wenn ihre Aktion genau <paramref name="exePath"/> --autostart ist.</summary>
-    private bool TaskMatches(string exePath)
+    private bool TaskMatches(string exePath) =>
+        ReadTaskAction() is { } action && action.Arguments?.Trim() == "--autostart" && AutostartTarget.SamePath(action.Command, exePath);
+
+    /// <summary>Befehl und Argumente der registrierten Aufgabe; null = keine Aufgabe oder nicht lesbar.</summary>
+    private (string? Command, string? Arguments)? ReadTaskAction()
     {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo("schtasks.exe", $"/Query /TN \"{TaskName}\" /XML")
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.Unicode,
-            });
-            if (p is null) return false;
-            var xml = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(5000) || p.ExitCode != 0) return false;
-
+            if (ReadTaskXml() is not { } xml) return null;
             XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
             var exec = XDocument.Parse(xml).Descendants(ns + "Exec").FirstOrDefault();
-            var command = exec?.Element(ns + "Command")?.Value;
-            var arguments = exec?.Element(ns + "Arguments")?.Value?.Trim();
-            return arguments == "--autostart" && SamePath(command, exePath);
+            return (exec?.Element(ns + "Command")?.Value, exec?.Element(ns + "Arguments")?.Value);
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Could not verify the scheduled task");
-            return false;
-        }
-    }
-
-    private static bool SamePath(string? a, string? b)
-    {
-        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
-        try
-        {
-            return string.Equals(Path.GetFullPath(a.Trim().Trim('"')), Path.GetFullPath(b.Trim().Trim('"')),
-                StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
+            logger?.LogWarning(ex, "Could not read the scheduled task");
+            return null;
         }
     }
 

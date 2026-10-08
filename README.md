@@ -75,6 +75,10 @@ Bluetooth; other models should work – feedback is welcome (see [CONTRIBUTING.m
    it any time under Settings → *Buttons* → **Press button …**.
 4. Tray icon → **Settings** → *General* → **Start with Windows** → Save.
 
+RingMouse also adds itself to the **Start menu** (*RingMouse*), so you can always start it by hand – if it is already
+running, this opens the settings. If you move the exe later, start it once from its new place: it repoints the Start
+menu entry and the autostart by itself (a scheduled task needs one click on **Set up autostart now**, which asks via UAC).
+
 Updating: quit RingMouse (tray → *Exit*, or `RingMouse.exe --exit`), replace the file, start it again.
 
 ## Switching from Logi Options+

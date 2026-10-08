@@ -77,6 +77,11 @@ MX Vertical über Bluetooth; andere Modelle sollten funktionieren – Rückmeldu
    Einstellungen → *Tasten* → **Taste drücken …**.
 4. Tray-Symbol → **Einstellungen** → *Allgemein* → **Mit Windows starten** → Speichern.
 
+RingMouse trägt sich außerdem ins **Startmenü** ein (*RingMouse*), damit du es jederzeit von Hand starten kannst – läuft
+es schon, öffnen sich die Einstellungen. Verschiebst du die Exe später, starte sie einmal am neuen Ort: Sie biegt den
+Startmenü-Eintrag und den Autostart selbst um (eine Aufgabe braucht einen Klick auf **Autostart jetzt einrichten**, der
+per UAC nachfragt).
+
 Aktualisieren: RingMouse beenden (Tray → *Beenden* oder `RingMouse.exe --exit`), Datei ersetzen, wieder starten.
 
 ## Options+ ablösen

@@ -12,6 +12,7 @@ using RingMouse.App.Ring;
 using RingMouse.App.Settings;
 using RingMouse.App.Tray;
 using RingMouse.Core;
+using RingMouse.Core.Autostart;
 using RingMouse.Core.Config;
 using RingMouse.Core.Import;
 using RingMouse.Core.Localization;
@@ -246,6 +247,7 @@ internal sealed class AppHost : ISettingsHost
         }
         Step("Updates");
         StartUpdater((typeof(AppHost).Assembly.GetName().Version ?? new Version(0, 0, 0)).ToString(3));
+        RepairAutostart();
 
         if (HasArg("--settings")) ShowSettings();
         if (HasArg("--selftest")) _ = RunSelfTestAsync();
@@ -336,7 +338,72 @@ internal sealed class AppHost : ISettingsHost
 
         UpdateTray();
         CheckOptionsPlus();
+        SyncStartMenuShortcut(config.General.StartMenuShortcut);
         _settings?.OnExternalConfigChanged(config);
+    }
+
+    /// <summary>
+    /// Autostart, der ins Leere zeigt (Exe verschoben oder gelöscht), auf diese Exe umbiegen: Ein Run-Eintrag wird still
+    /// korrigiert. Eine Aufgabe ließe sich nur per UAC neu anlegen – bis dahin übernimmt ein Run-Eintrag, und eine
+    /// Meldung sagt, wie die Aufgabe wiederhergestellt wird. Ein Autostart auf eine andere vorhandene Kopie bleibt.
+    /// </summary>
+    private void RepairAutostart()
+    {
+        if (Environment.ProcessPath is not { } exe) return;
+        Task.Run(() =>
+        {
+            try
+            {
+                var registration = Autostart.Inspect(exe);
+                if (registration.State == AutostartTargetState.OtherCopy)
+                    _log.LogInformation("Autostart starts another copy: {Exe}", registration.Exe);
+                if (registration.State != AutostartTargetState.Missing) return;
+
+                Autostart.SetRunEntry(exe);
+                if (registration.Mode == AutostartMode.Run)
+                {
+                    _log.LogInformation("Autostart pointed to a missing file ({Old}) – the Run entry now starts {Exe}", registration.Exe, exe);
+                    return;
+                }
+                _log.LogWarning("Autostart task starts a missing file ({Old}) – added a Run entry for {Exe} until the task is set up again",
+                    registration.Exe, exe);
+                Dispatcher.BeginInvoke(() => _tray.Notify(L("Autostart repaired", "Autostart repariert"),
+                    L("The scheduled task pointed to a file that no longer exists. RingMouse now starts via the Run entry. " +
+                      "To also start on unlock: Settings → General → \"Set up autostart now\".",
+                      "Die Aufgabe zeigte auf eine Datei, die es nicht mehr gibt. RingMouse startet jetzt über den Run-Eintrag. " +
+                      "Für den Start auch beim Entsperren: Einstellungen → Allgemein → „Autostart jetzt einrichten“."),
+                    TrayNotice.Warning));
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Autostart check failed");
+            }
+        });
+    }
+
+    private readonly Lock _shortcutLock = new();
+    private bool? _startMenuShortcut;
+
+    /// <summary>Startmenü-Verknüpfung anlegen/reparieren bzw. entfernen – beim Start und wenn sich die Einstellung ändert.</summary>
+    private void SyncStartMenuShortcut(bool wanted)
+    {
+        if (_startMenuShortcut == wanted || Environment.ProcessPath is not { } exe) return;
+        _startMenuShortcut = wanted;
+        Task.Run(() =>
+        {
+            try
+            {
+                lock (_shortcutLock)
+                {
+                    if (wanted && StartMenuShortcut.Ensure(exe)) _log.LogInformation("Start menu shortcut now starts {Exe}", exe);
+                    else if (!wanted && StartMenuShortcut.Remove(exe)) _log.LogInformation("Start menu shortcut removed");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not update the Start menu shortcut");
+            }
+        });
     }
 
     private void OnDeviceChanged(DeviceSnapshot snapshot)

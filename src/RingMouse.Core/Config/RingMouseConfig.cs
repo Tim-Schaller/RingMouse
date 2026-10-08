@@ -57,6 +57,9 @@ public sealed class GeneralSettings
     [Description("off | run | task")]
     public AutostartMode Autostart { get; set; } = AutostartMode.Off;
 
+    [Description("Keep a \"RingMouse\" shortcut in the Start menu (per user, no admin rights).")]
+    public bool StartMenuShortcut { get; set; } = true;
+
     [Description("Warn if Logi Options+ is running (it overrides button diversions).")]
     public bool WarnIfOptionsPlusRunning { get; set; } = true;
 

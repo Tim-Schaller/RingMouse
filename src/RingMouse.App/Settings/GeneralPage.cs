@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using RingMouse.Core;
+using RingMouse.Core.Autostart;
 using RingMouse.Core.Config;
 using RingMouse.Core.Update;
 using RingMouse.Platform;
@@ -59,7 +60,9 @@ internal sealed class GeneralPage : UserControl
         run.Checked += (_, _) => SetAutostart(AutostartMode.Run);
         task.Checked += (_, _) => SetAutostart(AutostartMode.Task);
         var apply = Form.Button(L("Set up autostart now", "Autostart jetzt einrichten"), ApplyAutostart);
-        stack.Children.Add(Form.Group("Autostart", off, run, task, Form.Hint(AutostartAdvice()), Form.Buttons(apply), _autostartStatus));
+        var startMenu = Form.Check(L("Show RingMouse in the Start menu (to start it by hand)", "RingMouse im Startmenü anzeigen (zum Starten von Hand)"),
+            g.StartMenuShortcut, v => { g.StartMenuShortcut = v; ctx.MarkDirty(); });
+        stack.Children.Add(Form.Group("Autostart", off, run, task, Form.Hint(AutostartAdvice()), Form.Buttons(apply), _autostartStatus, startMenu));
         UpdateAutostartStatus();
 
         // Verhalten
@@ -240,18 +243,26 @@ internal sealed class GeneralPage : UserControl
 
     private void UpdateAutostartStatus()
     {
-        var current = _ctx.Host.Autostart.DetectCurrent();
-        var mode = current switch
+        var current = _ctx.Host.Autostart.Inspect(Environment.ProcessPath ?? "");
+        var mode = current.Mode switch
         {
             AutostartMode.Run => L("Run entry", "Run-Eintrag"),
             AutostartMode.Task => L("scheduled task", "Aufgabe"),
             _ => L("no autostart", "kein Autostart"),
         };
+        var target = current.State switch
+        {
+            AutostartTargetState.Missing => L($"\n⚠ It starts a file that no longer exists: {current.Exe} – \"Set up autostart now\" fixes it.",
+                $"\n⚠ Er startet eine Datei, die es nicht mehr gibt: {current.Exe} – \"Autostart jetzt einrichten\" behebt das."),
+            AutostartTargetState.OtherCopy => L($"\nIt starts another copy of RingMouse: {current.Exe}", $"\nEr startet eine andere RingMouse-Kopie: {current.Exe}"),
+            _ => "",
+        };
         _autostartStatus.Text = L($"Currently set up: {mode}", $"Derzeit eingerichtet: {mode}") +
-                                (current == _ctx.Config.General.Autostart
+                                (current.Mode == _ctx.Config.General.Autostart
                                     ? ""
                                     : L(" – \"Set up autostart now\" or saving applies the selection.",
-                                        " – \"Autostart jetzt einrichten\" oder Speichern übernimmt die Auswahl."));
+                                        " – \"Autostart jetzt einrichten\" oder Speichern übernimmt die Auswahl.")) +
+                                target;
     }
 
     private static string AutostartAdvice()
