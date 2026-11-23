@@ -51,8 +51,23 @@ internal sealed class RingMouseApplication : Application
         }
 
         _host = new AppHost(this, _args);
-        _host.Start();
+        try
+        {
+            _host.Start();
+        }
+        catch (Exception ex)
+        {
+            // Nie halb gestartet weiterlaufen: ohne Gerätedienst wäre RingMouse wirkungslos, hielte aber die
+            // Einzelinstanz-Sperre – jeder weitere Start (Startmenü, Entsperren) würde sich still beenden.
+            Log.Fatal(ex, "Startup failed – exiting");
+            Logging.StartupTrace.Write($"Startup failed: {ex.GetType().Name}: {ex.Message}");
+            StartupFailed = true;
+            Shutdown(1);
+        }
     }
+
+    /// <summary>Start abgebrochen (Ausnahme in AppHost.Start) – Program.Main versucht es einmal erneut.</summary>
+    public bool StartupFailed { get; private set; }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {

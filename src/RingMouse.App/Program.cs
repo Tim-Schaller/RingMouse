@@ -12,6 +12,12 @@ public static class Program
     /// <summary>So lange nach Abmelde-/Herunterfahr-Beginn warten, bevor ein Abbruch angenommen wird.</summary>
     private static readonly TimeSpan SessionEndGrace = TimeSpan.FromSeconds(20);
 
+    /// <summary>Markiert den einen Wiederholungsstart nach einem abgebrochenen Start (verhindert eine Startschleife).</summary>
+    private const string StartupRetryArg = "--startup-retry";
+
+    /// <summary>Wartezeit vor dem Wiederholungsstart – z.B. bis die Anmeldung (Explorer, Bluetooth) durch ist.</summary>
+    private static readonly TimeSpan StartupRetryDelay = TimeSpan.FromSeconds(15);
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -40,8 +46,38 @@ public static class Program
         var code = app.Run();
         if (app.EndedBySessionEnding) RestartIfSessionContinues(mutex);
         else if (app.RestartRequested) StartNewInstance(mutex, app.RestartArguments);
+        else if (app.StartupFailed) RetryStartOnce(mutex, args);
         GC.KeepAlive(mutex);
         return code;
+    }
+
+    /// <summary>
+    /// Start abgebrochen: Sperre freigeben (ein manueller Start klappt sofort) und nach kurzer Wartezeit genau einmal
+    /// neu starten. Scheitert auch dieser Start, bleibt es dabei – der Grund steht im Log.
+    /// </summary>
+    private static void RetryStartOnce(Mutex mutex, string[] args)
+    {
+        mutex.ReleaseMutex();
+        mutex.Dispose();
+        if (args.Contains(StartupRetryArg, StringComparer.OrdinalIgnoreCase))
+        {
+            Logging.StartupTrace.Write("Startup failed again – giving up");
+            return;
+        }
+        Logging.StartupTrace.Write($"Startup failed – retrying in {StartupRetryDelay.TotalSeconds:0} s");
+        Thread.Sleep(StartupRetryDelay);
+        try
+        {
+            if (Environment.ProcessPath is not { } exe) return;
+            var start = new ProcessStartInfo(exe) { UseShellExecute = false };
+            foreach (var arg in args) start.ArgumentList.Add(arg);
+            start.ArgumentList.Add(StartupRetryArg);
+            Process.Start(start)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logging.StartupTrace.Write($"Retry start failed: {ex.Message}");
+        }
     }
 
     /// <summary>

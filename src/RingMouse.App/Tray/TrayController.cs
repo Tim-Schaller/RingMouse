@@ -1,9 +1,12 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using H.NotifyIcon;
 using H.NotifyIcon.Core;
+using Microsoft.Extensions.Logging;
 using RingMouse.Device;
 using RingMouse.Platform.Display;
 using static RingMouse.Core.Localization.Lang;
@@ -20,17 +23,33 @@ public enum TrayNotice
 /// <summary>Tray-Symbol mit Akku-Anzeige, Tooltip, Kontextmenü und Benachrichtigungen (erscheinen unter Windows 11 als Toast).</summary>
 internal sealed partial class TrayController : IDisposable
 {
+    // Direkt nach der Anmeldung ist der Infobereich oft noch nicht bereit, Shell_NotifyIcon schlägt dann fehl
+    // ("TryCreate failed"). Statt abzubrechen wird wiederholt – erst schnell, dann gemächlich, bis es klappt.
+    private static readonly TimeSpan FastRetry = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SlowRetry = TimeSpan.FromSeconds(15);
+    private const int FastRetryAttempts = 30; // ≈ 1 min
+    private const int MaxPendingNotices = 5;
+
     private readonly TaskbarIcon _icon;
     private readonly MenuItem _statusItem;
     private readonly MenuItem _rawLogItem;
     private readonly MenuItem _warningItem;
+    private readonly ILogger _log;
+    private readonly Dispatcher _dispatcher;
+    private readonly List<(string Title, string Message, TrayNotice Kind)> _pendingNotices = [];
+    private DispatcherTimer? _createRetry;
+    private long _createRetryStarted;
+    private int _createAttempts;
     private DeviceSnapshot? _device;
     private System.Drawing.Icon? _currentIcon;
     private string? _lastKnown;
     private string? _warning;
 
-    public TrayController(Action openSettings, Action openConfig, Action openLogs, Action<bool> toggleRawLog, Action reconnect, Action exit)
+    public TrayController(Action openSettings, Action openConfig, Action openLogs, Action<bool> toggleRawLog, Action reconnect, Action exit,
+        ILogger log)
     {
+        _log = log;
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _statusItem = new MenuItem { Header = L("No device", "Kein Gerät"), IsEnabled = false };
         _warningItem = new MenuItem { Header = "", Visibility = Visibility.Collapsed, IsEnabled = false };
         _rawLogItem = new MenuItem { Header = L("Record raw HID++ log", "Raw-HID++-Log aufzeichnen"), IsCheckable = true };
@@ -68,8 +87,71 @@ internal sealed partial class TrayController : IDisposable
         };
         _icon.TrayLeftMouseUp += (_, _) => openSettings();
         SetIcon(BatteryIcon.Render(null, false, false, SystemTheme.SystemUsesLightTheme, IconSize()));
-        // Effizienzmodus aus: er würde den Prozess drosseln und den Ring verzögern.
-        _icon.ForceCreate(enablesEfficiencyMode: false);
+        // Meldet jedes Anlegen – auch das der Bibliothek, wenn die Taskleiste (neu) entsteht ("TaskbarCreated").
+        _icon.TrayIcon.Created += (_, _) => _dispatcher.BeginInvoke(OnIconCreated);
+        if (!TryCreateIcon()) StartCreateRetry();
+    }
+
+    /// <summary>Ob das Symbol im Infobereich steht (sonst wird das Anlegen noch wiederholt).</summary>
+    public bool IsIconCreated => _icon.IsCreated;
+
+    private bool TryCreateIcon()
+    {
+        _createAttempts++;
+        try
+        {
+            // Effizienzmodus aus: er würde den Prozess drosseln und den Ring verzögern.
+            _icon.ForceCreate(enablesEfficiencyMode: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (_createAttempts == 1)
+                _log.LogWarning("Tray icon could not be created ({Error}) – taskbar probably not ready yet, retrying", ex.Message);
+            else
+                _log.LogDebug("Tray icon attempt {Attempt} failed: {Error}", _createAttempts, ex.Message);
+            return false;
+        }
+    }
+
+    private void StartCreateRetry()
+    {
+        _createRetryStarted = Stopwatch.GetTimestamp();
+        _createRetry = new DispatcherTimer(FastRetry, DispatcherPriority.Background, (_, _) => RetryCreate(), _dispatcher);
+        _createRetry.Start();
+    }
+
+    private void RetryCreate()
+    {
+        if (_createRetry is null) return;
+        if (_icon.IsCreated || TryCreateIcon())
+        {
+            OnIconCreated();
+            return;
+        }
+        if (_createAttempts == FastRetryAttempts)
+        {
+            _createRetry.Interval = SlowRetry;
+            _log.LogWarning("Tray icon still missing after {Attempts} attempts – retrying every {Seconds} s",
+                _createAttempts, SlowRetry.TotalSeconds);
+        }
+    }
+
+    /// <summary>Symbol steht: Wiederholung beenden und Hinweise aus der Wartezeit nachholen.</summary>
+    private void OnIconCreated()
+    {
+        if (!_icon.IsCreated) return;
+        if (_createRetry is not null)
+        {
+            _createRetry.Stop();
+            _createRetry = null;
+            _log.LogInformation("Tray icon created after {Attempts} attempt(s), {Seconds:0.0} s",
+                _createAttempts, Stopwatch.GetElapsedTime(_createRetryStarted).TotalSeconds);
+        }
+        if (_pendingNotices.Count == 0) return;
+        var pending = _pendingNotices.ToArray();
+        _pendingNotices.Clear();
+        foreach (var (title, message, kind) in pending) Notify(title, message, kind);
     }
 
     public bool RawLogChecked
@@ -108,6 +190,12 @@ internal sealed partial class TrayController : IDisposable
     public void Notify(string title, string message, TrayNotice kind = TrayNotice.Info)
     {
         if (Quiet) return;
+        if (!_icon.IsCreated)
+        {
+            // Ohne Symbol gibt es keine Benachrichtigung – nachholen, sobald es steht (z.B. "config.json fehlerhaft")
+            if (_pendingNotices.Count < MaxPendingNotices) _pendingNotices.Add((title, message, kind));
+            return;
+        }
         try
         {
             _icon.ShowNotification(title, message, kind switch
@@ -212,6 +300,8 @@ internal sealed partial class TrayController : IDisposable
 
     public void Dispose()
     {
+        _createRetry?.Stop();
+        _createRetry = null;
         _icon.Dispose();
         _currentIcon?.Dispose();
     }

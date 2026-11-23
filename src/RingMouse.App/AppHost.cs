@@ -185,7 +185,8 @@ internal sealed class AppHost : ISettingsHost
         _ring = new RingController(Dispatcher, _hookCoordinator, _actions, _logging.Create("Ring"), config);
         _router = new InputRouter(_ring, _actions, _hookCoordinator, _logging.Create("Input"), config);
         Step("Create tray icon");
-        _tray = new TrayController(ShowSettings, OpenConfigFile, OpenLogs, SetRawLog, ReconnectAll, Exit);
+        // Wirft nicht, wenn die Taskleiste noch nicht bereit ist – das Symbol folgt dann; der Start läuft weiter.
+        _tray = new TrayController(ShowSettings, OpenConfigFile, OpenLogs, SetRawLog, ReconnectAll, Exit, _logging.Create("Tray"));
         _tray.RawLogChecked = config.Debug.RawHidLog;
         _tray.Quiet = HasArg("--quiet") || HasArg("--selftest");
         _battery = new BatteryNotifier(_tray, _state, _logging.Create("Battery"));
@@ -741,11 +742,12 @@ internal sealed class AppHost : ISettingsHost
         try
         {
             // Nur der Geräte-Teil läuft im Threadpool – UI-Objekte bleiben auf ihrem Thread.
-            Task.Run(() => _devices.StopAsync(TimeSpan.FromSeconds(2))).Wait(TimeSpan.FromSeconds(3));
+            if (_devices is not null)
+                Task.Run(() => _devices.StopAsync(TimeSpan.FromSeconds(2))).Wait(TimeSpan.FromSeconds(3));
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Devices could not be reset during sign-out");
+            _log?.LogWarning(ex, "Devices could not be reset during sign-out");
         }
         EndShutdown();
     }
@@ -753,7 +755,7 @@ internal sealed class AppHost : ISettingsHost
     /// <summary>UI-gebundene Aufräumarbeiten (UI-Thread).</summary>
     private void BeginShutdown()
     {
-        _log.LogInformation("RingMouse shutting down");
+        _log?.LogInformation("RingMouse shutting down");
         _uiWatchdogStop.Set();
         CursorHider.Show();
         _optionsPlusTimer?.Stop();
@@ -770,16 +772,17 @@ internal sealed class AppHost : ISettingsHost
             _settings.SuppressClosePrompt = true;
             _settings.Close();
         }
-        _configStore.Dispose();
+        // Nach einem abgebrochenen Start (siehe RingMouseApplication.OnStartup) kann hier noch einiges fehlen.
+        _configStore?.Dispose();
     }
 
     private void EndShutdown()
     {
-        TryRun(_hooks.Dispose);
-        TryRun(_actions.Dispose);
-        TryRun(_tray.Dispose);
-        TryRun(_state.Save);
-        _logging.Dispose();
+        TryRun(() => _hooks?.Dispose());
+        TryRun(() => _actions?.Dispose());
+        TryRun(() => _tray?.Dispose());
+        TryRun(() => _state?.Save());
+        _logging?.Dispose();
 
         void TryRun(Action action)
         {
@@ -789,7 +792,7 @@ internal sealed class AppHost : ISettingsHost
             }
             catch (Exception ex)
             {
-                _log.LogDebug(ex, "Error during cleanup");
+                _log?.LogDebug(ex, "Error during cleanup");
             }
         }
     }
